@@ -1,0 +1,3294 @@
+<!--
+  校园篮球 · 60 秒投篮（单文件自包含小游戏）
+  =====================================================================
+  集成方式（推荐 iframe 嵌入）：
+    <iframe src="basketball.html" width="1200" height="675" style="border:0"></iframe>
+
+  每局结束结算时，本页面会向 window.parent.postMessage 发送一次：
+    { type: 'basketball-result', balls: 进球数, credits: 换算学分 }
+
+  主游戏监听示例：
+    window.addEventListener('message', function (event) {
+      if (event.data && event.data.type === 'basketball-result') {
+        console.log('进球数:', event.data.balls, '获得学分:', event.data.credits);
+      }
+    });
+
+  学分规则：credits = Math.min(balls * CONFIG.CREDITS_PER_BALL, CONFIG.MAX_CREDITS)
+  （一局最多 4 学分）
+  =====================================================================
+-->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>校园篮球 · 60秒投篮挑战</title>
+
+<script>
+  /* ===== 文件顶部核心配置 ===== */
+  const CONFIG = {
+    GAME_SECONDS: 60,
+    CREDITS_PER_BALL: 1,
+    MAX_CREDITS: 4,
+    NORMAL_POINTS: 1,
+    FAR_POINTS: 2,
+    FAR_LINE_X: 390,
+    CHARGE_RATE: 0.80,
+    SHOT_ANGLE_DEG: 52,
+    GRAVITY: 1420,
+    BALL_RADIUS: 13,
+    POWER_SENSITIVITY: 0.80,
+    SWEET_COMPRESSION: 0.28,
+    PLAYER_SPEED: 330,
+    PLAYER_MIN_X: 120,
+    PLAYER_MAX_X: 760,
+    PLAYER_START_X: 560
+  };
+  Object.freeze(CONFIG);
+</script>
+
+<style>
+  :root {
+    --ink: #192b4d;
+    --ink-soft: #2b436d;
+    --cream: #fff5d6;
+    --paper: #fffaf0;
+    --orange: #ff7a1a;
+    --orange-deep: #dc5009;
+    --yellow: #ffd23f;
+    --yellow-deep: #e5a900;
+    --teal: #18c2b0;
+    --sky: #7fdcff;
+    --pink: #ff5d8f;
+    --green: #2fcf73;
+    --red: #ff4d5e;
+    --navy: #22365d;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    font-family: "Trebuchet MS", "Avenir Next", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background:
+      radial-gradient(circle at 50% 30%, #3c587f 0%, #182944 58%, #0b1423 100%);
+    color: var(--ink);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button { font: inherit; }
+
+  .viewport {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .stage {
+    position: relative;
+    width: 1200px;
+    height: 675px;
+    flex: none;
+    overflow: hidden;
+    border-radius: 22px;
+    background: #bcefff;
+    box-shadow:
+      0 34px 100px rgba(0, 0, 0, 0.58),
+      0 0 0 2px rgba(255, 255, 255, 0.16) inset;
+    transform-origin: center center;
+    user-select: none;
+  }
+
+  /* =========================================================
+     背景 · 球馆
+     ========================================================= */
+  .arena-bg {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 72% 18%, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 29%),
+      linear-gradient(180deg, #79d7ff 0%, #bcefff 48%, #ecfbff 60%, #f2c370 60.2%, #e9ac51 100%);
+  }
+
+  .wall-pattern {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 568px;
+    opacity: 0.23;
+    background:
+      repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.55) 0 2px, transparent 2px 118px),
+      repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.32) 0 2px, transparent 2px 106px);
+  }
+
+  .sunburst {
+    position: absolute;
+    left: 690px;
+    top: 60px;
+    width: 440px;
+    height: 440px;
+    border-radius: 50%;
+    opacity: 0.34;
+    background: repeating-conic-gradient(from 8deg, rgba(255, 255, 255, 0.9) 0deg 11deg, rgba(255, 255, 255, 0) 11deg 23deg);
+    mask-image: radial-gradient(circle, #000 0 62%, transparent 64%);
+    -webkit-mask-image: radial-gradient(circle, #000 0 62%, transparent 64%);
+  }
+
+  .lights {
+    position: absolute;
+    top: 18px;
+    left: 0;
+    right: 0;
+    height: 16px;
+    display: flex;
+    justify-content: space-around;
+    padding: 0 110px;
+    opacity: 0.74;
+  }
+
+  .lights i {
+    display: block;
+    width: 92px;
+    height: 13px;
+    border-radius: 8px;
+    background: linear-gradient(180deg, #ffffff, #fff1a8);
+    box-shadow: 0 4px 18px rgba(255, 247, 182, 0.9);
+  }
+
+  .banner {
+    position: absolute;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #fff8df;
+    text-align: center;
+    border: 4px solid #172847;
+    box-shadow: 0 9px 0 rgba(23, 40, 71, 0.25);
+  }
+
+  .banner::after {
+    content: "";
+    position: absolute;
+    left: 13px;
+    right: 13px;
+    bottom: 10px;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.36);
+    border-radius: 2px;
+  }
+
+  .banner-left {
+    left: 42px;
+    top: 152px;
+    width: 178px;
+    height: 132px;
+    background:
+      linear-gradient(135deg, rgba(255, 255, 255, 0.16) 0 18%, transparent 18% 82%, rgba(255, 255, 255, 0.12) 82%),
+      linear-gradient(160deg, #ff7b37, #ff4f6e);
+    border-radius: 10px 10px 18px 18px;
+    transform: rotate(-3deg);
+  }
+
+  .banner-left .banner-small {
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 5px;
+    color: #ffe27a;
+  }
+
+  .banner-left strong {
+    font-size: 34px;
+    line-height: 0.95;
+    letter-spacing: -1px;
+    text-shadow: 0 3px 0 rgba(130, 37, 56, 0.42);
+  }
+
+  .banner-left .banner-num {
+    margin-top: 8px;
+    padding: 1px 12px;
+    border-radius: 999px;
+    background: #172847;
+    color: var(--yellow);
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 2px;
+  }
+
+  .banner-right {
+    right: 24px;
+    top: 92px;
+    width: 100px;
+    height: 88px;
+    border-width: 3px;
+    border-radius: 8px;
+    background: linear-gradient(160deg, #23c6b1, #0e9c96);
+    transform: rotate(4deg);
+  }
+
+  .banner-right strong {
+    font-size: 18px;
+    line-height: 1.05;
+    letter-spacing: 1px;
+  }
+
+  .banner-right span {
+    margin-top: 5px;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    color: #c8fff7;
+  }
+
+  .wall-basketball {
+    position: absolute;
+    left: 725px;
+    top: 56px;
+    width: 212px;
+    height: 212px;
+    border: 9px solid rgba(255, 255, 255, 0.42);
+    border-radius: 50%;
+    opacity: 0.35;
+    z-index: 1;
+  }
+
+  .wall-basketball::before,
+  .wall-basketball::after {
+    content: "";
+    position: absolute;
+    background: rgba(255, 255, 255, 0.45);
+  }
+
+  .wall-basketball::before {
+    left: 50%;
+    top: -5%;
+    bottom: -5%;
+    width: 6px;
+    transform: translateX(-50%);
+    border-radius: 4px;
+  }
+
+  .wall-basketball::after {
+    left: -5%;
+    right: -5%;
+    top: 50%;
+    height: 6px;
+    transform: translateY(-50%);
+    border-radius: 4px;
+  }
+
+  .wall-basketball span {
+    position: absolute;
+    inset: -4px 27%;
+    border: 6px solid rgba(255, 255, 255, 0.38);
+    border-radius: 50%;
+  }
+
+  .wall-basketball span:first-child { left: -16%; right: -16%; opacity: 0.8; }
+
+  .crowd {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 425px;
+    height: 88px;
+    z-index: 2;
+    background-image:
+      radial-gradient(circle, #ffe9a8 0 8px, transparent 9px),
+      radial-gradient(circle, #ffc34d 0 8px, transparent 9px),
+      radial-gradient(circle, #ff8fa8 0 8px, transparent 9px),
+      radial-gradient(circle, #e9f8ff 0 7px, transparent 8px),
+      linear-gradient(180deg, #35547c 0 48%, #223c60 48% 100%);
+    background-size: 58px 42px, 76px 50px, 66px 46px, 48px 38px, 100% 100%;
+    background-position: 6px 8px, 26px 23px, 48px 5px, 33px 17px, 0 0;
+    opacity: 0.9;
+  }
+
+  .crowd-rail {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 505px;
+    height: 17px;
+    z-index: 3;
+    background: repeating-linear-gradient(90deg, #ff5d8f 0 78px, #ff7a69 78px 156px);
+    border-top: 4px solid #172847;
+    border-bottom: 4px solid #172847;
+  }
+
+  .crowd-rail::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 4px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.5);
+  }
+
+  .wall-base {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 522px;
+    height: 46px;
+    z-index: 2;
+    background:
+      linear-gradient(90deg, transparent 0 498px, rgba(255, 255, 255, 0.1) 498px 502px, transparent 502px),
+      linear-gradient(180deg, #1c3559, #142947);
+    border-top: 4px solid #ffd23f;
+  }
+
+  .wall-base::before {
+    content: "CAMPUS ARENA  ·  SECTION B  ·  HOME OF THE SUNS";
+    position: absolute;
+    left: 50%;
+    top: 14px;
+    transform: translateX(-50%);
+    color: rgba(205, 240, 255, 0.5);
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 3px;
+    white-space: nowrap;
+  }
+
+  /* =========================================================
+     球场
+     ========================================================= */
+  .court {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 568px;
+    bottom: 0;
+    z-index: 2;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0) 42%),
+      repeating-linear-gradient(90deg, #efb55c 0 76px, #f5c16a 76px 152px);
+  }
+
+  .court::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 6px;
+    background: #fff2c8;
+    box-shadow: 0 3px 0 rgba(199, 136, 47, 0.25);
+  }
+
+  .court::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 20px;
+    background: linear-gradient(180deg, rgba(140, 80, 22, 0), rgba(123, 66, 18, 0.18));
+  }
+
+  .court-grain {
+    position: absolute;
+    inset: 0;
+    opacity: 0.22;
+    background: repeating-linear-gradient(0deg, rgba(123, 67, 20, 0.28) 0 1px, transparent 1px 13px);
+  }
+
+  .court-arc {
+    position: absolute;
+    left: 455px;
+    top: -10px;
+    width: 950px;
+    height: 290px;
+    border: 5px solid rgba(255, 249, 220, 0.55);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
+  .court-line {
+    position: absolute;
+    left: 752px;
+    top: 0;
+    width: 5px;
+    height: 100%;
+    background: rgba(255, 249, 220, 0.48);
+    transform: skewX(-17deg);
+  }
+
+  .court-label {
+    position: absolute;
+    right: 54px;
+    bottom: 18px;
+    color: rgba(112, 62, 17, 0.4);
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 5px;
+    transform: rotate(-2deg);
+  }
+
+  .far-zone-glow {
+    position: absolute;
+    left: 0;
+    top: 560px;
+    width: 390px;
+    height: 115px;
+    z-index: 3;
+    background: linear-gradient(90deg, rgba(255, 93, 143, 0.3), rgba(255, 93, 143, 0.03));
+    border-top: 3px dashed rgba(255, 93, 143, 0.55);
+    pointer-events: none;
+    transition: opacity 0.2s ease, filter 0.2s ease;
+  }
+
+  .far-zone-glow.active {
+    filter: brightness(1.18);
+    background: linear-gradient(90deg, rgba(255, 93, 143, 0.44), rgba(255, 93, 143, 0.05));
+  }
+
+  .far-line {
+    position: absolute;
+    left: 390px;
+    top: 340px;
+    width: 0;
+    height: 228px;
+    border-left: 4px dashed rgba(255, 93, 143, 0.8);
+    z-index: 4;
+    pointer-events: none;
+  }
+
+  .far-line span {
+    position: absolute;
+    left: 50%;
+    top: -34px;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 3px solid #8c2449;
+    background: #ff5d8f;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    box-shadow: 0 4px 0 rgba(90, 20, 45, 0.25);
+  }
+
+  /* =========================================================
+     投篮点
+     ========================================================= */
+  .spot {
+    position: absolute;
+    top: 568px;
+    height: 48px;
+    transform: translateX(-50%);
+    z-index: 4;
+    pointer-events: none;
+  }
+
+  .spot.normal { left: 560px; width: 168px; }
+  .spot.far { left: 195px; width: 196px; }
+
+  .spot-ring {
+    position: absolute;
+    left: 6px;
+    right: 6px;
+    bottom: 0;
+    height: 38px;
+    border-radius: 50%;
+    border: 4px dashed rgba(255, 255, 255, 0.95);
+    background: rgba(255, 210, 63, 0.22);
+    box-shadow: 0 0 22px rgba(255, 210, 63, 0.35), inset 0 0 20px rgba(255, 255, 255, 0.28);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  }
+
+  .spot.far .spot-ring {
+    border-color: rgba(255, 238, 247, 0.95);
+    background: rgba(255, 93, 143, 0.3);
+    box-shadow: 0 0 26px rgba(255, 93, 143, 0.55), inset 0 0 20px rgba(255, 255, 255, 0.22);
+  }
+
+  .spot.active .spot-ring {
+    transform: scale(1.07);
+    background: rgba(47, 207, 115, 0.35);
+    box-shadow: 0 0 28px rgba(47, 207, 115, 0.75), inset 0 0 20px rgba(255, 255, 255, 0.3);
+  }
+
+  .spot.far.active .spot-ring {
+    background: rgba(255, 210, 63, 0.35);
+    box-shadow: 0 0 30px rgba(255, 210, 63, 0.85), inset 0 0 20px rgba(255, 255, 255, 0.3);
+  }
+
+  .spot-label {
+    position: absolute;
+    left: 50%;
+    bottom: 49px;
+    transform: translateX(-50%);
+    min-width: 126px;
+    padding: 6px 12px 7px;
+    border: 3px solid var(--ink);
+    border-radius: 12px;
+    background: var(--yellow);
+    color: var(--ink);
+    text-align: center;
+    box-shadow: 0 4px 0 rgba(25, 43, 77, 0.2);
+    white-space: nowrap;
+  }
+
+  .spot.far .spot-label {
+    background: var(--pink);
+    color: #fff;
+    box-shadow: 0 4px 0 rgba(96, 17, 46, 0.25);
+  }
+
+  .spot-label b {
+    display: block;
+    font-size: 13px;
+    font-weight: 900;
+    line-height: 1.15;
+  }
+
+  .spot-label span {
+    display: block;
+    margin-top: 1px;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    opacity: 0.78;
+  }
+
+  .spot.far .spot-label::after {
+    content: "★";
+    position: absolute;
+    right: -11px;
+    top: -13px;
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid #8c2449;
+    background: var(--yellow);
+    color: #8c2449;
+    font-size: 11px;
+  }
+
+  /* =========================================================
+     篮筐
+     ========================================================= */
+  .hoop {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    pointer-events: none;
+  }
+
+  .hoop .pole {
+    position: absolute;
+    left: 1094px;
+    top: 210px;
+    width: 17px;
+    height: 358px;
+    border: 4px solid #1a2d50;
+    border-radius: 5px;
+    background: linear-gradient(90deg, #526b91, #c6ddf1 43%, #6f89ab);
+    box-shadow: 8px 9px 0 rgba(25, 43, 77, 0.12);
+  }
+
+  .hoop .support {
+    position: absolute;
+    left: 1058px;
+    top: 249px;
+    width: 52px;
+    height: 13px;
+    border: 4px solid #1a2d50;
+    border-radius: 4px;
+    background: #8faeca;
+  }
+
+  .hoop .board {
+    position: absolute;
+    left: 1058px;
+    top: 158px;
+    width: 18px;
+    height: 209px;
+    border: 4px solid #172847;
+    border-radius: 4px;
+    background: linear-gradient(90deg, #e4f5ff, #ffffff 45%, #b6d7eb);
+    box-shadow: 8px 10px 0 rgba(23, 40, 71, 0.18);
+  }
+
+  .hoop .board-square {
+    position: absolute;
+    left: -44px;
+    top: 59px;
+    width: 48px;
+    height: 56px;
+    border: 5px solid #ff6b35;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.15);
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.48);
+  }
+
+  .hoop .board-brand {
+    position: absolute;
+    left: 6px;
+    top: 128px;
+    width: 85px;
+    color: rgba(34, 54, 93, 0.36);
+    font-size: 7px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    transform: rotate(-90deg);
+    transform-origin: left top;
+    white-space: nowrap;
+  }
+
+  .hoop .rim {
+    position: absolute;
+    left: 966px;
+    top: 324px;
+    width: 90px;
+    height: 12px;
+    border: 4px solid #7d2b08;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #ffb13b, #ff6b18 55%, #d84d08);
+    box-shadow: 0 3px 0 rgba(94, 31, 6, 0.3), 0 0 10px rgba(255, 122, 26, 0.28);
+  }
+
+  .hoop .rim::before,
+  .hoop .rim::after {
+    content: "";
+    position: absolute;
+    top: -2px;
+    width: 8px;
+    height: 10px;
+    border-radius: 50%;
+    background: #ff7a1a;
+    border: 2px solid #7d2b08;
+  }
+
+  .hoop .rim::before { left: -3px; }
+  .hoop .rim::after { right: -3px; }
+
+  .hoop .net {
+    position: absolute;
+    left: 973px;
+    top: 334px;
+    width: 81px;
+    height: 102px;
+    clip-path: polygon(0 0, 100% 0, 82% 100%, 18% 100%);
+    background-image:
+      repeating-linear-gradient(64deg, rgba(255, 255, 255, 0.96) 0 2px, transparent 2px 14px),
+      repeating-linear-gradient(-64deg, rgba(255, 255, 255, 0.96) 0 2px, transparent 2px 14px);
+    filter: drop-shadow(0 2px 1px rgba(20, 40, 70, 0.24));
+    transform-origin: 50% 0;
+  }
+
+  .hoop .net::after {
+    content: "";
+    position: absolute;
+    left: 13px;
+    right: 13px;
+    bottom: 0;
+    height: 4px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.9);
+  }
+
+  .hoop.scored .net {
+    animation: netSwing 0.62s cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+
+  .hoop.scored .rim {
+    animation: rimFlash 0.55s ease-out;
+  }
+
+  .hoop.scored .board {
+    animation: boardFlash 0.55s ease-out;
+  }
+
+  /* =========================================================
+     卡通球员
+     ========================================================= */
+  .player {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 96px;
+    height: 176px;
+    z-index: 10;
+    will-change: transform;
+  }
+
+  .player .shadow {
+    position: absolute;
+    left: 10px;
+    bottom: 1px;
+    width: 78px;
+    height: 13px;
+    border-radius: 50%;
+    background: rgba(25, 43, 77, 0.25);
+    filter: blur(1.5px);
+  }
+
+  .character {
+    position: absolute;
+    inset: 0;
+    transform-origin: 50% 100%;
+    transition: transform 0.16s ease;
+  }
+
+  .player.charging .character {
+    transform: translateY(4px) scaleY(0.975);
+  }
+
+  .player .leg {
+    position: absolute;
+    top: 116px;
+    width: 14px;
+    height: 47px;
+    border: 3px solid #172847;
+    border-radius: 7px;
+    background: #f7bb82;
+    transform-origin: 50% 0;
+    z-index: 2;
+  }
+
+  .player .leg-l { left: 32px; }
+  .player .leg-r { left: 52px; }
+
+  .player .shoe {
+    position: absolute;
+    left: -7px;
+    bottom: -8px;
+    width: 31px;
+    height: 13px;
+    border: 3px solid #172847;
+    border-radius: 9px 11px 5px 5px;
+    background: #fff7df;
+    box-shadow: inset 0 -4px 0 #ff7a1a;
+  }
+
+  .player .shorts {
+    position: absolute;
+    left: 24px;
+    top: 91px;
+    width: 49px;
+    height: 32px;
+    border: 3px solid #172847;
+    border-radius: 8px 8px 11px 11px;
+    background: linear-gradient(180deg, #244474, #172e53);
+    z-index: 3;
+  }
+
+  .player .shorts::before,
+  .player .shorts::after {
+    content: "";
+    position: absolute;
+    top: 8px;
+    width: 8px;
+    height: 3px;
+    border-radius: 2px;
+    background: #ff7a1a;
+  }
+
+  .player .shorts::before { left: 7px; }
+  .player .shorts::after { right: 7px; }
+
+  .player .torso {
+    position: absolute;
+    left: 25px;
+    top: 45px;
+    width: 47px;
+    height: 53px;
+    border: 3px solid #172847;
+    border-radius: 17px 17px 10px 10px;
+    background:
+      linear-gradient(90deg, transparent 0 8%, rgba(255, 255, 255, 0.55) 8% 12%, transparent 12% 88%, rgba(255, 255, 255, 0.55) 88% 92%, transparent 92%),
+      linear-gradient(180deg, #ff9a3e, #ff6a18);
+    z-index: 4;
+    box-shadow: inset 0 -5px 0 rgba(184, 60, 3, 0.18);
+  }
+
+  .player .torso .number {
+    position: absolute;
+    left: 50%;
+    top: 15px;
+    transform: translateX(-50%);
+    color: #fff7df;
+    font-size: 22px;
+    font-weight: 900;
+    line-height: 1;
+    text-shadow: 0 2px 0 rgba(144, 46, 0, 0.45);
+  }
+
+  .player .arm {
+    position: absolute;
+    width: 12px;
+    height: 34px;
+    border: 3px solid #172847;
+    border-radius: 8px;
+    background: #f7bb82;
+    transform-origin: 50% 4px;
+    z-index: 5;
+  }
+
+  .player .arm-l {
+    left: 17px;
+    top: 52px;
+    transform: rotate(18deg);
+    background: #eaa76e;
+  }
+
+  .player .arm-r {
+    left: 64px;
+    top: 49px;
+    height: 18px;
+    transform: rotate(70deg);
+    transition: transform 0.16s ease, height 0.16s ease;
+  }
+
+  .player.charging .arm-r {
+    height: 30px;
+    transform: rotate(150deg);
+  }
+
+  .player .hand {
+    position: absolute;
+    left: 50%;
+    bottom: -9px;
+    width: 13px;
+    height: 13px;
+    transform: translateX(-50%);
+    border: 3px solid #172847;
+    border-radius: 50%;
+    background: #f7bb82;
+  }
+
+  .player .neck {
+    position: absolute;
+    left: 43px;
+    top: 39px;
+    width: 13px;
+    height: 12px;
+    border: 3px solid #172847;
+    border-radius: 3px;
+    background: #eaa76e;
+    z-index: 3;
+  }
+
+  .player .head {
+    position: absolute;
+    left: 26px;
+    top: 3px;
+    width: 45px;
+    height: 42px;
+    border: 3px solid #172847;
+    border-radius: 46% 46% 44% 44%;
+    background: #ffc992;
+    z-index: 6;
+    box-shadow: inset -5px -4px 0 rgba(214, 137, 73, 0.22);
+  }
+
+  .player .hair {
+    position: absolute;
+    left: -4px;
+    top: -7px;
+    width: 53px;
+    height: 24px;
+    border: 3px solid #172847;
+    border-radius: 27px 27px 8px 8px;
+    background: #253658;
+    transform: rotate(-3deg);
+  }
+
+  .player .hair::after {
+    content: "";
+    position: absolute;
+    right: -4px;
+    top: 7px;
+    width: 17px;
+    height: 11px;
+    border-radius: 0 10px 10px 0;
+    background: #253658;
+    transform: rotate(14deg);
+  }
+
+  .player .ear {
+    position: absolute;
+    right: -7px;
+    top: 17px;
+    width: 9px;
+    height: 13px;
+    border: 3px solid #172847;
+    border-radius: 50%;
+    background: #f7bb82;
+  }
+
+  .player .eye {
+    position: absolute;
+    right: 8px;
+    top: 17px;
+    width: 5px;
+    height: 8px;
+    border-radius: 50%;
+    background: #172847;
+  }
+
+  .player .smile {
+    position: absolute;
+    right: 8px;
+    top: 28px;
+    width: 9px;
+    height: 5px;
+    border-bottom: 3px solid #8d4a36;
+    border-radius: 0 0 8px 8px;
+    transform: rotate(-5deg);
+  }
+
+  .player.walking .leg-l { animation: legSwing 0.30s infinite alternate ease-in-out; }
+  .player.walking .leg-r { animation: legSwing 0.30s infinite alternate-reverse ease-in-out; }
+  .player.walking .arm-l { animation: armSwing 0.30s infinite alternate ease-in-out; }
+  .player.shooting .arm-r { animation: shootArm 0.3s ease-out; }
+
+  /* =========================================================
+     篮球
+     ========================================================= */
+  .ball {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    z-index: 13;
+    background: radial-gradient(circle at 34% 27%, #ffc45c 0%, #ff922f 34%, #ff6d16 66%, #cb4605 100%);
+    border: 2px solid #762b08;
+    box-shadow: 0 5px 8px rgba(50, 20, 0, 0.23), inset -3px -4px 0 rgba(119, 36, 2, 0.18);
+    will-change: transform;
+    overflow: hidden;
+  }
+
+  .ball::before,
+  .ball::after {
+    content: "";
+    position: absolute;
+    background: #7c2d0b;
+    opacity: 0.9;
+  }
+
+  .ball::before {
+    left: 50%;
+    top: -6%;
+    bottom: -6%;
+    width: 2px;
+    transform: translateX(-50%);
+  }
+
+  .ball::after {
+    left: -6%;
+    right: -6%;
+    top: 50%;
+    height: 2px;
+    transform: translateY(-50%);
+  }
+
+  .ball .seam {
+    position: absolute;
+    top: -8%;
+    bottom: -8%;
+    width: 58%;
+    border: 2px solid #7c2d0b;
+    border-radius: 50%;
+    opacity: 0.9;
+  }
+
+  .ball .seam-a { left: -29%; }
+  .ball .seam-b { right: -29%; }
+
+  /* =========================================================
+     HUD
+     ========================================================= */
+  .topbar {
+    position: absolute;
+    left: 25px;
+    right: 25px;
+    top: 18px;
+    z-index: 70;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: start;
+    gap: 18px;
+    pointer-events: none;
+  }
+
+  .brand {
+    justify-self: start;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 7px 14px 8px 8px;
+    border: 3px solid var(--ink);
+    border-radius: 16px;
+    background: rgba(255, 250, 240, 0.92);
+    box-shadow: 0 5px 0 rgba(25, 43, 77, 0.18);
+  }
+
+  .brand-mark {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 46px;
+    height: 46px;
+    flex: none;
+    border-radius: 13px;
+    border: 3px solid var(--ink);
+    background: linear-gradient(160deg, #ffa93d, #ff6b18);
+    overflow: hidden;
+  }
+
+  .brand-mark::before,
+  .brand-mark::after {
+    content: "";
+    position: absolute;
+    background: #7c2d0b;
+    opacity: 0.75;
+  }
+
+  .brand-mark::before {
+    left: 50%;
+    top: -10%;
+    bottom: -10%;
+    width: 3px;
+    transform: translateX(-50%);
+  }
+
+  .brand-mark::after {
+    left: -10%;
+    right: -10%;
+    top: 50%;
+    height: 3px;
+    transform: translateY(-50%);
+  }
+
+  .brand-mark span {
+    width: 34px;
+    height: 44px;
+    border: 3px solid #7c2d0b;
+    border-radius: 50%;
+    opacity: 0.8;
+  }
+
+  .brand-copy strong {
+    display: block;
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+    line-height: 1;
+  }
+
+  .brand-copy small {
+    display: block;
+    margin-top: 5px;
+    color: #526887;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 2px;
+  }
+
+  .timer-card {
+    position: relative;
+    justify-self: center;
+    width: 204px;
+    padding: 8px 14px 11px;
+    border: 3px solid var(--ink);
+    border-radius: 16px;
+    background: linear-gradient(180deg, #263e68, #172847);
+    color: #fff8df;
+    box-shadow: 0 6px 0 rgba(12, 26, 49, 0.28), inset 0 0 0 2px rgba(255, 255, 255, 0.09);
+    overflow: hidden;
+  }
+
+  .timer-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .clock-icon {
+    position: relative;
+    width: 21px;
+    height: 21px;
+    flex: none;
+    border: 2px solid var(--yellow);
+    border-radius: 50%;
+  }
+
+  .clock-icon::before,
+  .clock-icon::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    background: var(--yellow);
+    border-radius: 2px;
+    transform-origin: 50% 0;
+  }
+
+  .clock-icon::before {
+    width: 2px;
+    height: 6px;
+    transform: translate(-50%, -100%) rotate(12deg);
+  }
+
+  .clock-icon::after {
+    width: 2px;
+    height: 5px;
+    transform: translate(-50%, -100%) rotate(120deg);
+  }
+
+  .timer-label {
+    flex: 1;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    color: #bcd9ec;
+  }
+
+  .timer-number {
+    font-size: 33px;
+    font-weight: 900;
+    line-height: 0.9;
+    letter-spacing: -1px;
+    font-variant-numeric: tabular-nums;
+    color: var(--yellow);
+  }
+
+  .timer-number small {
+    margin-left: 3px;
+    font-size: 13px;
+    color: #bcd9ec;
+    letter-spacing: 0;
+  }
+
+  .timer-track {
+    position: relative;
+    height: 7px;
+    margin-top: 7px;
+    border-radius: 99px;
+    background: #0e1b31;
+    overflow: hidden;
+  }
+
+  .timer-fill {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #2fcf73, #ffd23f);
+    transition: width 0.12s linear, background 0.2s ease;
+  }
+
+  .timer-card.urgent {
+    animation: timerWarn 0.62s infinite alternate;
+  }
+
+  .timer-card.urgent .timer-number { color: #ffd0d5; }
+  .timer-card.urgent .timer-fill { background: linear-gradient(90deg, #ff4d5e, #ff8a2a); }
+
+  .score-card {
+    justify-self: end;
+    min-width: 158px;
+    padding: 7px 16px 8px;
+    border: 3px solid var(--ink);
+    border-radius: 16px;
+    background: rgba(255, 250, 240, 0.94);
+    text-align: right;
+    box-shadow: 0 5px 0 rgba(25, 43, 77, 0.18);
+  }
+
+  .score-card > span {
+    display: block;
+    color: #586d8d;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 2px;
+  }
+
+  .score-card strong {
+    display: inline-block;
+    margin: 0 4px 0 8px;
+    font-size: 38px;
+    font-weight: 900;
+    line-height: 1;
+    color: var(--orange);
+    font-variant-numeric: tabular-nums;
+    transform-origin: center bottom;
+  }
+
+  .score-card strong.bump { animation: scoreBump 0.34s ease-out; }
+
+  .score-card small {
+    display: block;
+    color: #8a99b1;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+  }
+
+  .help-strip {
+    position: absolute;
+    left: 26px;
+    top: 94px;
+    z-index: 65;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 12px;
+    border: 2px solid rgba(25, 43, 77, 0.5);
+    border-radius: 10px;
+    background: rgba(255, 250, 240, 0.76);
+    color: #334c72;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.3px;
+    pointer-events: none;
+    backdrop-filter: blur(5px);
+  }
+
+  .help-strip .sep {
+    width: 1px;
+    height: 15px;
+    background: rgba(25, 43, 77, 0.24);
+  }
+
+  kbd {
+    display: inline-grid;
+    place-items: center;
+    min-width: 19px;
+    height: 19px;
+    padding: 0 5px;
+    border: 2px solid #334c72;
+    border-bottom-width: 3px;
+    border-radius: 5px;
+    background: #fffdf5;
+    color: #233a5d;
+    font-family: inherit;
+    font-size: 9px;
+    font-weight: 900;
+    line-height: 1;
+    vertical-align: middle;
+    box-shadow: 0 1px 0 rgba(25, 43, 77, 0.14);
+  }
+
+  .zone-pill {
+    position: absolute;
+    right: 27px;
+    bottom: 27px;
+    z-index: 65;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 13px 9px;
+    border: 3px solid var(--ink);
+    border-radius: 999px;
+    background: var(--yellow);
+    box-shadow: 0 5px 0 rgba(25, 43, 77, 0.2);
+    pointer-events: none;
+    transition: background 0.15s ease, transform 0.15s ease;
+  }
+
+  .zone-pill.far {
+    background: var(--pink);
+    color: #fff;
+    transform: scale(1.04);
+  }
+
+  .zone-pill .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #1f7f49;
+    box-shadow: 0 0 0 3px rgba(47, 207, 115, 0.25);
+  }
+
+  .zone-pill.far .dot {
+    background: var(--yellow);
+    box-shadow: 0 0 0 3px rgba(255, 210, 63, 0.3);
+  }
+
+  .zone-pill b {
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+  }
+
+  .zone-pill em {
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: rgba(25, 43, 77, 0.14);
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 900;
+  }
+
+  /* =========================================================
+     蓄力条
+     ========================================================= */
+  .power-panel {
+    position: absolute;
+    left: 50%;
+    bottom: 18px;
+    z-index: 68;
+    width: 440px;
+    padding: 9px 15px 10px;
+    transform: translateX(-50%);
+    border: 3px solid var(--ink);
+    border-radius: 17px;
+    background: rgba(255, 250, 240, 0.94);
+    box-shadow: 0 6px 0 rgba(25, 43, 77, 0.22), inset 0 0 0 2px rgba(255, 255, 255, 0.7);
+    pointer-events: none;
+    backdrop-filter: blur(5px);
+    transition: box-shadow 0.16s ease, border-color 0.16s ease;
+  }
+
+  .power-panel.charging {
+    border-color: #146a3b;
+    box-shadow: 0 6px 0 rgba(25, 43, 77, 0.22), 0 0 0 4px rgba(47, 207, 115, 0.2);
+  }
+
+  .power-top,
+  .power-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .power-top {
+    margin-bottom: 6px;
+  }
+
+  .power-title {
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    color: #526887;
+  }
+
+  .power-value {
+    font-size: 11px;
+    font-weight: 900;
+    color: var(--orange-deep);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .power-panel.charging .power-value { color: #17884a; }
+
+  .power-track {
+    position: relative;
+    height: 20px;
+    border: 2px solid var(--ink);
+    border-radius: 8px;
+    background: #d8e4ed;
+    overflow: hidden;
+  }
+
+  .power-ticks {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    opacity: 0.4;
+    pointer-events: none;
+    background: repeating-linear-gradient(90deg, transparent 0 9.6%, rgba(25, 43, 77, 0.5) 9.6% 10%);
+  }
+
+  .power-sweet {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 4;
+    border-left: 2px solid #106137;
+    border-right: 2px solid #106137;
+    background: repeating-linear-gradient(135deg, #43e18b 0 7px, #26b965 7px 14px);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  }
+
+  .power-sweet span {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    color: #064d2a;
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+
+  .power-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 3;
+    width: 0;
+    background: linear-gradient(90deg, #ffd23f, #ff9a2f 65%, #ff6b18);
+    border-right: 2px solid rgba(114, 42, 4, 0.8);
+  }
+
+  .power-fill.over {
+    background: linear-gradient(90deg, #ff9a2f, #ff4d5e);
+  }
+
+  .power-fill.perfect {
+    background: linear-gradient(90deg, #63e79a, #2fcf73);
+    border-right-color: #0f6940;
+  }
+
+  .power-target {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    z-index: 6;
+    width: 2px;
+    background: #fff;
+    box-shadow: 0 0 0 1px rgba(25, 43, 77, 0.58);
+    transform: translateX(-1px);
+  }
+
+  .power-knob {
+    position: absolute;
+    top: -4px;
+    bottom: -4px;
+    left: 0;
+    z-index: 7;
+    width: 4px;
+    border-radius: 4px;
+    background: #fffdf4;
+    box-shadow: 0 0 0 2px #233a5d;
+    transform: translateX(-2px);
+  }
+
+  .power-bottom {
+    margin-top: 6px;
+    color: #526887;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.3px;
+  }
+
+  #powerHint { white-space: nowrap; }
+  #powerRange { white-space: nowrap; color: #18834a; }
+
+  /* =========================================================
+     飘字 / 彩纸
+     ========================================================= */
+  .fx-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 45;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .float-text {
+    position: absolute;
+    z-index: 2;
+    color: var(--yellow);
+    font-size: 34px;
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: 1px;
+    white-space: nowrap;
+    text-shadow:
+      0 3px 0 #7d2b08,
+      3px 0 0 #7d2b08,
+      -3px 0 0 #7d2b08,
+      0 -3px 0 #7d2b08,
+      0 0 18px rgba(255, 210, 63, 0.55);
+    animation: floatUp 1.15s cubic-bezier(0.18, 0.75, 0.25, 1) forwards;
+  }
+
+  .float-text.good { color: #8affb9; text-shadow: 0 3px 0 #07542c, 3px 0 0 #07542c, -3px 0 0 #07542c, 0 -3px 0 #07542c, 0 0 18px rgba(47, 207, 115, 0.45); }
+  .float-text.bad { color: #ffb5c0; text-shadow: 0 3px 0 #6b1626, 3px 0 0 #6b1626, -3px 0 0 #6b1626, 0 -3px 0 #6b1626; }
+  .float-text.small { font-size: 22px; }
+
+  .confetti {
+    position: absolute;
+    z-index: 1;
+    width: 9px;
+    height: 15px;
+    border-radius: 2px;
+    opacity: 0;
+    animation: confettiPop 1.2s cubic-bezier(0.12, 0.65, 0.3, 1) forwards;
+  }
+
+  /* =========================================================
+     遮罩 / 开始 / 结算
+     ========================================================= */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(13, 27, 50, 0.56);
+    backdrop-filter: blur(6px);
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+  }
+
+  .overlay.is-hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .card {
+    position: relative;
+    width: 760px;
+    max-height: 620px;
+    padding: 27px 36px 23px;
+    border: 5px solid var(--ink);
+    border-radius: 30px;
+    background:
+      radial-gradient(circle at 93% 8%, rgba(255, 210, 63, 0.35) 0 75px, transparent 76px),
+      linear-gradient(180deg, #fffdf4, #fff4d8);
+    box-shadow:
+      0 18px 0 rgba(10, 22, 43, 0.5),
+      inset 0 0 0 4px #fff,
+      inset 0 -10px 0 rgba(255, 190, 87, 0.18);
+    text-align: center;
+    overflow: hidden;
+  }
+
+  .card::before {
+    content: "";
+    position: absolute;
+    left: -30px;
+    right: -30px;
+    top: -62px;
+    height: 36px;
+    background: repeating-linear-gradient(90deg, var(--orange) 0 32px, #ffad45 32px 64px);
+    transform: rotate(-2deg);
+    box-shadow: 0 5px 0 rgba(197, 91, 14, 0.2);
+  }
+
+  .card::after {
+    content: "";
+    position: absolute;
+    right: -60px;
+    bottom: -78px;
+    width: 190px;
+    height: 190px;
+    border: 18px solid rgba(255, 93, 143, 0.1);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
+  .start-card { width: 760px; }
+
+  .title-row {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 21px;
+    margin: 2px 0 8px;
+  }
+
+  .title-basketball {
+    position: relative;
+    width: 78px;
+    height: 78px;
+    flex: none;
+    border: 4px solid #762b08;
+    border-radius: 50%;
+    background: radial-gradient(circle at 34% 27%, #ffc45c 0%, #ff922f 34%, #ff6d16 68%, #cb4605 100%);
+    box-shadow: 0 6px 0 rgba(118, 43, 8, 0.19);
+    transform: rotate(-12deg);
+    overflow: hidden;
+  }
+
+  .title-basketball::before,
+  .title-basketball::after {
+    content: "";
+    position: absolute;
+    background: #7c2d0b;
+  }
+
+  .title-basketball::before {
+    left: 50%;
+    top: -8%;
+    bottom: -8%;
+    width: 4px;
+    transform: translateX(-50%);
+  }
+
+  .title-basketball::after {
+    left: -8%;
+    right: -8%;
+    top: 50%;
+    height: 4px;
+    transform: translateY(-50%);
+  }
+
+  .title-basketball span {
+    position: absolute;
+    top: -8%;
+    bottom: -8%;
+    width: 62%;
+    border: 4px solid #7c2d0b;
+    border-radius: 50%;
+  }
+
+  .title-basketball span:first-child { left: -31%; }
+  .title-basketball span:last-child { right: -31%; }
+
+  .title-copy { text-align: left; }
+
+  .kicker {
+    margin: 0 0 2px;
+    color: var(--orange-deep);
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 4px;
+  }
+
+  .title-copy h1 {
+    margin: 0;
+    font-size: 46px;
+    font-weight: 900;
+    line-height: 0.95;
+    letter-spacing: -2px;
+    color: var(--ink);
+  }
+
+  .title-copy h1 span {
+    display: inline-block;
+    margin-left: 7px;
+    color: var(--orange);
+    text-shadow: 0 3px 0 rgba(207, 83, 6, 0.2);
+  }
+
+  .lead {
+    position: relative;
+    z-index: 2;
+    margin: 8px auto 16px;
+    max-width: 600px;
+    color: #526887;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.55;
+  }
+
+  .lead b { color: var(--ink); }
+
+  .howto-grid {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 11px;
+    margin: 0 0 14px;
+  }
+
+  .howto {
+    position: relative;
+    min-height: 109px;
+    padding: 12px 10px 10px;
+    border: 3px solid var(--ink);
+    border-radius: 15px;
+    background: #fffdf7;
+    box-shadow: 0 4px 0 rgba(25, 43, 77, 0.12);
+  }
+
+  .howto-icon {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    margin: 0 auto 8px;
+    border-radius: 12px;
+    background: #e8f7ff;
+    color: var(--ink);
+  }
+
+  .howto:nth-child(2) .howto-icon { background: #fff0c4; }
+  .howto:nth-child(3) .howto-icon { background: #ffe4eb; }
+
+  .icon-move {
+    position: relative;
+    width: 22px;
+    height: 22px;
+  }
+
+  .icon-move::before,
+  .icon-move::after {
+    content: "";
+    position: absolute;
+    top: 8px;
+    width: 8px;
+    height: 8px;
+    border-top: 3px solid var(--ink);
+    border-left: 3px solid var(--ink);
+  }
+
+  .icon-move::before { left: 0; transform: rotate(-45deg); }
+  .icon-move::after { right: 0; transform: rotate(135deg); }
+
+  .icon-power {
+    position: relative;
+    width: 25px;
+    height: 23px;
+    border: 3px solid var(--ink);
+    border-radius: 5px;
+    background: #ffd23f;
+  }
+
+  .icon-power::after {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 4px;
+    bottom: 4px;
+    width: 9px;
+    border-radius: 2px;
+    background: var(--orange);
+  }
+
+  .icon-hoop {
+    position: relative;
+    width: 30px;
+    height: 24px;
+    margin-top: 4px;
+    border: 3px solid var(--ink);
+    border-radius: 4px;
+    background: #fff;
+  }
+
+  .icon-hoop::before {
+    content: "";
+    position: absolute;
+    left: 3px;
+    right: 3px;
+    top: 5px;
+    border-top: 4px solid var(--orange);
+    border-radius: 50%;
+  }
+
+  .icon-hoop::after {
+    content: "";
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    top: 9px;
+    height: 12px;
+    border-left: 2px solid #788aa3;
+    border-right: 2px solid #788aa3;
+    border-bottom: 2px solid #788aa3;
+    transform: perspective(20px) rotateX(-18deg);
+  }
+
+  .howto b {
+    display: block;
+    font-size: 13px;
+    font-weight: 900;
+    line-height: 1.15;
+  }
+
+  .howto p {
+    margin: 4px 0 0;
+    color: #6b7d96;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.45;
+  }
+
+  .howto p kbd { min-width: 16px; height: 16px; padding: 0 4px; font-size: 8px; border-width: 1px 1px 2px; }
+
+  .rule-row {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .rule-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border: 2px solid rgba(25, 43, 77, 0.18);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.72);
+    color: #425a7d;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.4px;
+  }
+
+  .rule-chip .mini-ball {
+    position: relative;
+    width: 12px;
+    height: 12px;
+    border: 1px solid #762b08;
+    border-radius: 50%;
+    background: var(--orange);
+  }
+
+  .rule-chip .mini-ball::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: #762b08;
+    transform: translateX(-50%);
+  }
+
+  .rule-chip .star { color: var(--pink); font-size: 13px; line-height: 1; }
+
+  .primary-btn {
+    position: relative;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-width: 240px;
+    padding: 13px 24px 14px;
+    border: 3px solid var(--ink);
+    border-radius: 15px;
+    background: linear-gradient(180deg, #ffa23c, #ff6b18);
+    color: #fffdf5;
+    cursor: pointer;
+    box-shadow: 0 7px 0 #a33d07, 0 11px 18px rgba(152, 65, 9, 0.22);
+    font-size: 21px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+  }
+
+  .primary-btn::after {
+    content: "→";
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.22);
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  .primary-btn small {
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+    opacity: 0.78;
+  }
+
+  .primary-btn:hover {
+    filter: brightness(1.06);
+    transform: translateY(-2px);
+    box-shadow: 0 9px 0 #a33d07, 0 14px 22px rgba(152, 65, 9, 0.24);
+  }
+
+  .primary-btn:active {
+    transform: translateY(4px);
+    box-shadow: 0 3px 0 #a33d07, 0 5px 8px rgba(152, 65, 9, 0.2);
+  }
+
+  .primary-btn:focus-visible {
+    outline: 4px solid var(--ink);
+    outline-offset: 5px;
+  }
+
+  .credit-note {
+    position: relative;
+    z-index: 2;
+    margin: 9px 0 0;
+    color: #7889a1;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.7px;
+  }
+
+  .start-hint {
+    position: relative;
+    z-index: 2;
+    margin: 8px 0 0;
+    color: #8d9bb0;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+  }
+
+  .start-hint kbd { min-width: 38px; }
+
+  /* 结算 */
+  .end-card {
+    width: 620px;
+    padding: 28px 38px 24px;
+  }
+
+  .end-card .kicker { text-align: center; color: var(--pink); }
+
+  .end-card h2 {
+    position: relative;
+    z-index: 2;
+    margin: 3px 0 2px;
+    color: var(--ink);
+    font-size: 49px;
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: -2px;
+  }
+
+  .end-card h2 span { color: var(--orange); }
+
+  .end-message {
+    position: relative;
+    z-index: 2;
+    margin: 7px 0 16px;
+    color: #667a95;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .result-grid {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: 1fr 42px 1fr;
+    align-items: stretch;
+    gap: 12px;
+    margin: 0 0 10px;
+  }
+
+  .result-stat {
+    padding: 13px 12px 11px;
+    border: 3px solid var(--ink);
+    border-radius: 17px;
+    background: #fffdf7;
+    box-shadow: 0 5px 0 rgba(25, 43, 77, 0.12);
+  }
+
+  .result-stat span {
+    display: block;
+    color: #687d98;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 2px;
+  }
+
+  .result-stat strong {
+    display: inline-block;
+    margin: 1px 4px 0;
+    color: var(--orange);
+    font-size: 54px;
+    font-weight: 900;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .result-stat small {
+    color: #8291a7;
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  .result-stat.credits {
+    background: linear-gradient(180deg, #fff9db, #fff3bb);
+    border-color: #6b5411;
+  }
+
+  .result-stat.credits strong { color: #d98b00; }
+
+  .result-arrow {
+    display: grid;
+    place-items: center;
+    color: #aab7c8;
+    font-size: 27px;
+    font-weight: 900;
+  }
+
+  .end-card .primary-btn { min-width: 250px; }
+
+  .sync-note {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin: 11px 0 0;
+    color: #7f91a8;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.8px;
+  }
+
+  .sync-note span {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 0 3px rgba(47, 207, 115, 0.18);
+  }
+
+  /* =========================================================
+     动效
+     ========================================================= */
+  @keyframes legSwing {
+    from { transform: rotate(-15deg); }
+    to { transform: rotate(17deg); }
+  }
+
+  @keyframes armSwing {
+    from { transform: rotate(18deg); }
+    to { transform: rotate(36deg); }
+  }
+
+  @keyframes shootArm {
+    0% { height: 18px; transform: rotate(70deg); }
+    38% { height: 30px; transform: rotate(150deg); }
+    100% { height: 26px; transform: rotate(118deg); }
+  }
+
+  @keyframes scoreBump {
+    0% { transform: scale(1); }
+    38% { transform: scale(1.38) rotate(-3deg); }
+    75% { transform: scale(0.94) rotate(1deg); }
+    100% { transform: scale(1); }
+  }
+
+  @keyframes timerWarn {
+    from { box-shadow: 0 6px 0 rgba(12, 26, 49, 0.28), 0 0 0 0 rgba(255, 77, 94, 0.25); }
+    to { box-shadow: 0 6px 0 rgba(12, 26, 49, 0.28), 0 0 0 6px rgba(255, 77, 94, 0.25); }
+  }
+
+  @keyframes netSwing {
+    0% { transform: skewX(0deg) scaleY(1); }
+    22% { transform: skewX(8deg) scaleY(1.12); }
+    45% { transform: skewX(-6deg) scaleY(0.96); }
+    68% { transform: skewX(3deg) scaleY(1.04); }
+    100% { transform: skewX(0deg) scaleY(1); }
+  }
+
+  @keyframes rimFlash {
+    0% { filter: brightness(1); }
+    35% { filter: brightness(1.65) drop-shadow(0 0 12px #ffd23f); }
+    100% { filter: brightness(1); }
+  }
+
+  @keyframes boardFlash {
+    0% { filter: brightness(1); }
+    28% { filter: brightness(1.28); }
+    100% { filter: brightness(1); }
+  }
+
+  @keyframes floatUp {
+    0% { opacity: 0; transform: translate(-50%, -20%) scale(0.55); }
+    18% { opacity: 1; transform: translate(-50%, -55%) scale(1.08); }
+    72% { opacity: 1; transform: translate(-50%, -120%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -220%) scale(0.94); }
+  }
+
+  @keyframes confettiPop {
+    0% { opacity: 0; transform: translate(0, 0) rotate(0deg) scale(0.6); }
+    12% { opacity: 1; }
+    100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(var(--rot)) scale(1); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .player.walking .leg-l,
+    .player.walking .leg-r,
+    .player.walking .arm-l,
+    .timer-card.urgent {
+      animation: none;
+    }
+    .confetti, .float-text { animation-duration: 0.35s; }
+  }
+</style>
+</head>
+
+<body>
+<div class="viewport">
+  <main class="stage" id="stage" aria-label="校园篮球 60 秒投篮游戏">
+    <div class="arena-bg"></div>
+    <div class="wall-pattern"></div>
+    <div class="sunburst"></div>
+    <div class="wall-basketball" aria-hidden="true"><span></span><span></span></div>
+    <div class="lights" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+
+    <div class="banner banner-left" aria-hidden="true">
+      <span class="banner-small">CAMPUS</span>
+      <strong>HOOPS</strong>
+      <span class="banner-num">60 SEC</span>
+    </div>
+    <div class="banner banner-right" aria-hidden="true">
+      <strong>PLAY<br>HARD</strong>
+      <span>HOME</span>
+    </div>
+
+    <div class="crowd" aria-hidden="true"></div>
+    <div class="crowd-rail" aria-hidden="true"></div>
+    <div class="wall-base" aria-hidden="true"></div>
+
+    <div class="court" aria-hidden="true">
+      <div class="court-grain"></div>
+      <div class="court-arc"></div>
+      <div class="court-line"></div>
+      <div class="court-label">CAMPUS COURT</div>
+    </div>
+
+    <div class="far-zone-glow" id="farZoneGlow"></div>
+    <div class="far-line"><span>远投线 · 2 分区</span></div>
+
+    <div class="spot normal" id="normalSpot">
+      <div class="spot-ring"></div>
+      <div class="spot-label">
+        <b>普通投篮点</b>
+        <span>命中 +1 球</span>
+      </div>
+    </div>
+
+    <div class="spot far" id="farSpot">
+      <div class="spot-ring"></div>
+      <div class="spot-label">
+        <b>远投点</b>
+        <span>命中 +2 球 · 更难</span>
+      </div>
+    </div>
+
+    <div class="hoop" id="hoop" aria-hidden="true">
+      <div class="pole"></div>
+      <div class="support"></div>
+      <div class="board">
+        <div class="board-square"></div>
+        <div class="board-brand">CAMPUS HOOPS</div>
+      </div>
+      <div class="rim"></div>
+      <div class="net"></div>
+    </div>
+
+    <div class="player" id="player">
+      <div class="shadow"></div>
+      <div class="character">
+        <div class="leg leg-l"><span class="shoe"></span></div>
+        <div class="leg leg-r"><span class="shoe"></span></div>
+        <div class="shorts"></div>
+        <div class="torso"><span class="number">7</span></div>
+        <div class="arm arm-l"></div>
+        <div class="arm arm-r"><span class="hand"></span></div>
+        <div class="neck"></div>
+        <div class="head">
+          <div class="hair"></div>
+          <div class="ear"></div>
+          <div class="eye"></div>
+          <div class="smile"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ball" id="ball" aria-hidden="true">
+      <span class="seam seam-a"></span>
+      <span class="seam seam-b"></span>
+    </div>
+
+    <div class="fx-layer" id="fxLayer" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"><span></span></div>
+        <div class="brand-copy">
+          <strong>CAMPUS HOOPS</strong>
+          <small>60 秒投篮挑战</small>
+        </div>
+      </div>
+
+      <div class="timer-card" id="timerCard">
+        <div class="timer-head">
+          <span class="clock-icon" aria-hidden="true"></span>
+          <span class="timer-label">剩余时间</span>
+          <span class="timer-number"><b id="timerText">60</b><small>s</small></span>
+        </div>
+        <div class="timer-track"><i class="timer-fill" id="timerFill"></i></div>
+      </div>
+
+      <div class="score-card" id="scoreCard">
+        <span>进球数</span>
+        <strong id="hudScore" aria-live="polite">0</strong>
+        <small>远投命中一次 +2 球</small>
+      </div>
+    </header>
+
+    <div class="help-strip" aria-hidden="true">
+      <span><kbd>←</kbd><kbd>→</kbd> / <kbd>A</kbd><kbd>D</kbd> 移动</span>
+      <span class="sep"></span>
+      <span><kbd>SPACE</kbd> 按住蓄力 · 松开投篮</span>
+    </div>
+
+    <div class="zone-pill" id="zonePill">
+      <span class="dot"></span>
+      <b id="zoneName">普通区</b>
+      <em id="zoneValue">+1 球</em>
+    </div>
+
+    <div class="power-panel" id="powerPanel">
+      <div class="power-top">
+        <span class="power-title">投篮力度</span>
+        <span class="power-value" id="powerValue">按住空格蓄力</span>
+      </div>
+      <div class="power-track" id="powerTrack">
+        <div class="power-ticks"></div>
+        <div class="power-sweet" id="powerSweet"><span>最佳</span></div>
+        <div class="power-fill" id="powerFill"></div>
+        <div class="power-target" id="powerTarget"></div>
+        <div class="power-knob" id="powerKnob"></div>
+      </div>
+      <div class="power-bottom">
+        <span id="powerHint">在绿色区间松手，更容易命中</span>
+        <span id="powerRange">最佳 49%–60%</span>
+      </div>
+    </div>
+
+    <!-- 开始界面 -->
+    <section class="overlay" id="startOverlay" aria-labelledby="startTitle">
+      <div class="card start-card">
+        <div class="title-row">
+          <div class="title-basketball" aria-hidden="true"><span></span><span></span></div>
+          <div class="title-copy">
+            <p class="kicker">60-SECOND SHOOTOUT</p>
+            <h1 id="startTitle">校园篮球<span>投篮挑战</span></h1>
+          </div>
+        </div>
+
+        <p class="lead">
+          跑动寻找投篮点，<b>按住空格蓄力</b>，在绿色最佳区间松开出手。<br>
+          普通进球 <b>+1 球</b>，远投进球 <b>+2 球</b>，60 秒内尽可能多进！
+        </p>
+
+        <div class="howto-grid">
+          <div class="howto">
+            <div class="howto-icon"><span class="icon-move"></span></div>
+            <b>移动找点</b>
+            <p><kbd>←</kbd><kbd>→</kbd> 或 <kbd>A</kbd><kbd>D</kbd><br>走到黄色或粉色投篮点</p>
+          </div>
+          <div class="howto">
+            <div class="howto-icon"><span class="icon-power"></span></div>
+            <b>蓄力投篮</b>
+            <p>按住 <kbd>SPACE</kbd> 蓄力<br>绿色区间松手更准</p>
+          </div>
+          <div class="howto">
+            <div class="howto-icon"><span class="icon-hoop"></span></div>
+            <b>远投高分</b>
+            <p>粉色区离筐更远、更难<br>命中一次算 2 球</p>
+          </div>
+        </div>
+
+        <div class="rule-row">
+          <span class="rule-chip"><i class="mini-ball"></i>普通投篮 +1 球</span>
+          <span class="rule-chip"><i class="star">★</i>远投点 +2 球</span>
+          <span class="rule-chip">60 秒限时</span>
+          <span class="rule-chip">单局最多 4 学分</span>
+        </div>
+
+        <button class="primary-btn" id="startBtn" type="button">开始比赛 <small>按空格也可以</small></button>
+        <p class="start-hint">按 <kbd>SPACE</kbd> 开始 · 结束时自动换算学分</p>
+      </div>
+    </section>
+
+    <!-- 结束结算界面 -->
+    <section class="overlay is-hidden" id="endOverlay" aria-labelledby="endTitle" aria-hidden="true">
+      <div class="card end-card">
+        <p class="kicker">FINAL BUZZER</p>
+        <h2 id="endTitle">时间到<span>！</span></h2>
+        <p class="end-message" id="endMessage">这一局手感怎么样？</p>
+
+        <div class="result-grid">
+          <div class="result-stat">
+            <span>进球数</span><br>
+            <strong id="endBalls">0</strong><small>球</small>
+          </div>
+          <div class="result-arrow" aria-hidden="true">→</div>
+          <div class="result-stat credits">
+            <span>换算学分</span><br>
+            <strong id="endCredits">0</strong><small>/ 4</small>
+          </div>
+        </div>
+
+        <p class="credit-note">学分 = min(进球数 × 1, 4)，单局最多 4 学分</p>
+        <button class="primary-btn" id="replayBtn" type="button">再来一局 <small>按 Enter</small></button>
+        <p class="sync-note"><span></span>本局结算结果已发送给主游戏</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* =========================================================
+     常量与 DOM
+     ========================================================= */
+  const WORLD_W = 1200;
+  const FLOOR_Y = 568;
+  const PLAYER_W = 96;
+  const PLAYER_H = 176;
+  const BALL_R = CONFIG.BALL_RADIUS;
+  const RIM_LEFT = 966;
+  const RIM_RIGHT = 1056;
+  const RIM_Y = 330;
+  const RIM_R = 7;
+  const BOARD_X = 1058;
+  const BOARD_TOP = 158;
+  const BOARD_BOTTOM = 367;
+  const HOOP_X = (RIM_LEFT + RIM_RIGHT) / 2;
+  const RELEASE_Y = 410;
+  const HELD_IDLE_Y = 446;
+  const HELD_CHARGE_Y = 414;
+  const SHOT_ANGLE = CONFIG.SHOT_ANGLE_DEG * Math.PI / 180;
+
+  const stage = document.getElementById('stage');
+  const playerEl = document.getElementById('player');
+  const ballEl = document.getElementById('ball');
+  const hoopEl = document.getElementById('hoop');
+  const fxLayer = document.getElementById('fxLayer');
+  const normalSpot = document.getElementById('normalSpot');
+  const farSpot = document.getElementById('farSpot');
+  const farZoneGlow = document.getElementById('farZoneGlow');
+  const zonePill = document.getElementById('zonePill');
+  const zoneName = document.getElementById('zoneName');
+  const zoneValue = document.getElementById('zoneValue');
+  const hudScore = document.getElementById('hudScore');
+  const scoreCard = document.getElementById('scoreCard');
+  const timerCard = document.getElementById('timerCard');
+  const timerText = document.getElementById('timerText');
+  const timerFill = document.getElementById('timerFill');
+  const powerPanel = document.getElementById('powerPanel');
+  const powerFill = document.getElementById('powerFill');
+  const powerSweet = document.getElementById('powerSweet');
+  const powerTarget = document.getElementById('powerTarget');
+  const powerKnob = document.getElementById('powerKnob');
+  const powerValue = document.getElementById('powerValue');
+  const powerHint = document.getElementById('powerHint');
+  const powerRange = document.getElementById('powerRange');
+  const startOverlay = document.getElementById('startOverlay');
+  const endOverlay = document.getElementById('endOverlay');
+  const startBtn = document.getElementById('startBtn');
+  const replayBtn = document.getElementById('replayBtn');
+  const endBalls = document.getElementById('endBalls');
+  const endCredits = document.getElementById('endCredits');
+  const endMessage = document.getElementById('endMessage');
+
+  /* =========================================================
+     运行时状态
+     ========================================================= */
+  let state = 'menu';                 // menu | playing | ended
+  let balls = 0;
+  let timeLeft = CONFIG.GAME_SECONDS;
+  let roundEndsAt = 0;
+  let lastFrame = performance.now();
+  let lastBeepSecond = -1;
+  let resultSent = false;
+  let endShownAt = 0;
+
+  const player = {
+    x: CONFIG.PLAYER_START_X,
+    moving: false
+  };
+
+  const keys = {
+    left: false,
+    right: false
+  };
+
+  let charging = false;
+  let charge = 0;
+  let aim = {
+    ideal: 0.55,
+    half: 0.06,
+    min: 0.49,
+    max: 0.61,
+    ratio: 0
+  };
+  let lockedAim = null;
+
+  const ball = {
+    x: player.x + 36,
+    y: HELD_IDLE_Y,
+    renderY: HELD_IDLE_Y,
+    vx: 0,
+    vy: 0,
+    inFlight: false,
+    scored: false,
+    missShown: false,
+    settled: false,
+    returnTimer: 0,
+    flightTime: 0,
+    bounces: 0,
+    value: 1,
+    fromFar: false,
+    rotation: 0,
+    quality: 'good',
+    releaseCharge: 0
+  };
+
+  let audioCtx = null;
+
+  /* =========================================================
+     工具函数
+     ========================================================= */
+  function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  function randomBetween(min, max) {
+    return min + Math.random() * (max - min);
+  }
+
+  function computeAimAt(x) {
+    const releaseX = x + 36;
+    const dx = HOOP_X - releaseX;
+    const ratio = clamp((dx - 200) / 620, 0, 1);
+    const ideal = 0.36 + ratio * 0.50;
+    const half = 0.07 - ratio * 0.032;
+    return {
+      ideal: ideal,
+      half: half,
+      min: clamp(ideal - half, 0.04, 0.96),
+      max: clamp(ideal + half, 0.04, 0.96),
+      ratio: ratio
+    };
+  }
+
+  function refreshAim() {
+    if (!charging) {
+      aim = computeAimAt(player.x);
+      renderAimUI();
+    }
+  }
+
+  function renderAimUI() {
+    const a = charging && lockedAim ? lockedAim : aim;
+    const left = clamp(a.min, 0, 1) * 100;
+    const width = clamp(a.max - a.min, 0, 1) * 100;
+    powerSweet.style.left = left + '%';
+    powerSweet.style.width = width + '%';
+    powerTarget.style.left = (a.ideal * 100) + '%';
+    powerRange.textContent = '最佳 ' + Math.round(a.min * 100) + '%–' + Math.round(a.max * 100) + '%';
+  }
+
+  function updatePlayerDOM() {
+    playerEl.style.transform = 'translate3d(' + (player.x - PLAYER_W / 2) + 'px,' + (FLOOR_Y - PLAYER_H) + 'px,0)';
+    playerEl.classList.toggle('walking', player.moving && !charging && state === 'playing');
+  }
+
+  function updateZoneUI() {
+    const isFar = player.x < CONFIG.FAR_LINE_X;
+    zonePill.classList.toggle('far', isFar);
+    zoneName.textContent = isFar ? '远投区' : '普通区';
+    zoneValue.textContent = isFar ? '+2 球' : '+1 球';
+
+    const nearNormal = Math.abs(player.x - 560) <= 88;
+    const nearFar = Math.abs(player.x - 195) <= 98;
+    normalSpot.classList.toggle('active', nearNormal);
+    farSpot.classList.toggle('active', nearFar);
+    farZoneGlow.classList.toggle('active', isFar);
+  }
+
+  function ballTransform(x, y, rotation) {
+    return 'translate3d(' + (x - BALL_R) + 'px,' + (y - BALL_R) + 'px,0) rotate(' + rotation + 'deg)';
+  }
+
+  function updateHeldBallDOM(dt) {
+    if (ball.inFlight) return;
+    const targetX = player.x + 36;
+    const targetY = charging ? HELD_CHARGE_Y : HELD_IDLE_Y;
+    ball.x = targetX;
+    if (ball.renderY === null || ball.renderY === undefined) ball.renderY = targetY;
+    const speed = Math.min(1, dt * 15);
+    ball.renderY += (targetY - ball.renderY) * speed;
+    ball.y = ball.renderY;
+    ballEl.style.transform = ballTransform(ball.x, ball.y, 0);
+  }
+
+  function setBallHeldInstant() {
+    ball.inFlight = false;
+    ball.scored = false;
+    ball.missShown = false;
+    ball.settled = false;
+    ball.returnTimer = 0;
+    ball.flightTime = 0;
+    ball.bounces = 0;
+    ball.vx = 0;
+    ball.vy = 0;
+    ball.rotation = 0;
+    ball.renderY = charging ? HELD_CHARGE_Y : HELD_IDLE_Y;
+    ball.x = player.x + 36;
+    ball.y = ball.renderY;
+    ballEl.style.transform = ballTransform(ball.x, ball.y, 0);
+    ballEl.style.opacity = '1';
+  }
+
+  function resetBallToPlayer() {
+    ball.inFlight = false;
+    ball.scored = false;
+    ball.missShown = false;
+    ball.settled = false;
+    ball.returnTimer = 0;
+    ball.flightTime = 0;
+    ball.bounces = 0;
+    ball.vx = 0;
+    ball.vy = 0;
+    ball.renderY = charging ? HELD_CHARGE_Y : HELD_IDLE_Y;
+    ballEl.style.opacity = '1';
+    updateHeldBallDOM(1);
+    updatePowerUI();
+  }
+
+  /* =========================================================
+     音效（Web Audio，无外部资源）
+     ========================================================= */
+  function ensureAudio() {
+    try {
+      if (!audioCtx) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (Ctx) audioCtx = new Ctx();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    } catch (err) {
+      audioCtx = null;
+    }
+  }
+
+  function tone(freq, duration, type, volume, slideTo, delay) {
+    if (!audioCtx) return;
+    try {
+      const when = audioCtx.currentTime + (delay || 0);
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type || 'sine';
+      osc.frequency.setValueAtTime(freq, when);
+      if (slideTo) {
+        osc.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), when + duration);
+      }
+      gain.gain.setValueAtTime(0.0001, when);
+      gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, volume || 0.035), when + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, when + duration);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(when);
+      osc.stop(when + duration + 0.03);
+    } catch (err) {
+      /* 音效失败不影响游戏 */
+    }
+  }
+
+  function sfxStart() {
+    ensureAudio();
+    tone(392, 0.09, 'triangle', 0.045, 523, 0);
+    tone(523, 0.11, 'triangle', 0.04, 659, 0.1);
+    tone(784, 0.16, 'triangle', 0.035, 988, 0.22);
+  }
+
+  function sfxShoot() {
+    tone(210, 0.18, 'sine', 0.025, 620, 0);
+  }
+
+  function sfxScore(far) {
+    if (far) {
+      tone(523, 0.10, 'triangle', 0.045, 784, 0);
+      tone(659, 0.10, 'triangle', 0.04, 988, 0.09);
+      tone(880, 0.23, 'triangle', 0.045, 1175, 0.19);
+    } else {
+      tone(660, 0.09, 'sine', 0.035, 880, 0);
+      tone(990, 0.16, 'sine', 0.035, 1320, 0.09);
+    }
+  }
+
+  function sfxMiss() {
+    tone(180, 0.11, 'square', 0.018, 110, 0);
+    tone(110, 0.16, 'sine', 0.025, 70, 0.08);
+  }
+
+  function sfxBounce() {
+    tone(130, 0.07, 'sine', 0.012, 90, 0);
+  }
+
+  function sfxEnd() {
+    tone(523, 0.12, 'triangle', 0.035, 392, 0);
+    tone(392, 0.16, 'triangle', 0.03, 262, 0.12);
+    tone(262, 0.24, 'sine', 0.03, 196, 0.28);
+  }
+
+  /* =========================================================
+     蓄力 / 投篮
+     ========================================================= */
+  function startCharge() {
+    if (state !== 'playing' || charging || ball.inFlight) return;
+    charging = true;
+    charge = 0;
+    lockedAim = computeAimAt(player.x);
+    aim = lockedAim;
+    playerEl.classList.add('charging');
+    powerPanel.classList.add('charging');
+    player.moving = false;
+    renderAimUI();
+    updatePowerUI();
+    ensureAudio();
+  }
+
+  function cancelCharge() {
+    if (!charging) return;
+    charging = false;
+    charge = 0;
+    lockedAim = null;
+    playerEl.classList.remove('charging');
+    powerPanel.classList.remove('charging');
+    updatePowerUI();
+    updateHeldBallDOM(1);
+  }
+
+  function releaseShot() {
+    if (state !== 'playing' || !charging) return;
+
+    charging = false;
+    const releasedAim = lockedAim || computeAimAt(player.x);
+    const releasedCharge = charge;
+    const inSweet = releasedCharge >= releasedAim.min && releasedCharge <= releasedAim.max;
+    let effectiveCharge = releasedCharge;
+
+    if (inSweet) {
+      effectiveCharge = releasedAim.ideal + (releasedCharge - releasedAim.ideal) * CONFIG.SWEET_COMPRESSION;
+    }
+
+    let quality = 'good';
+    if (releasedCharge < releasedAim.min) quality = 'short';
+    if (releasedCharge > releasedAim.max) quality = 'long';
+
+    const releaseX = player.x + 36;
+    const dx = HOOP_X - releaseX;
+    const dy = RIM_Y - RELEASE_Y;
+    const cosA = Math.cos(SHOT_ANGLE);
+    const tanA = Math.tan(SHOT_ANGLE);
+    const denominator = dy + dx * tanA;
+
+    let idealSpeed = 0;
+    if (denominator > 0 && dx > 0) {
+      idealSpeed = Math.sqrt((CONFIG.GRAVITY * dx * dx) / (2 * cosA * cosA * denominator));
+    }
+    if (!Number.isFinite(idealSpeed) || idealSpeed <= 0) {
+      idealSpeed = 900;
+    }
+
+    const tinyNoise = randomBetween(-0.0012, 0.0012);
+    const speedFactor = 1 + (effectiveCharge - releasedAim.ideal) * CONFIG.POWER_SENSITIVITY + tinyNoise;
+    const shotSpeed = Math.max(120, idealSpeed * speedFactor);
+
+    ball.inFlight = true;
+    ball.scored = false;
+    ball.missShown = false;
+    ball.settled = false;
+    ball.returnTimer = 0;
+    ball.flightTime = 0;
+    ball.bounces = 0;
+    ball.rotation = 0;
+    ball.x = releaseX;
+    ball.y = RELEASE_Y;
+    ball.renderY = RELEASE_Y;
+    ball.vx = shotSpeed * cosA;
+    ball.vy = -shotSpeed * Math.sin(SHOT_ANGLE);
+    ball.fromFar = player.x < CONFIG.FAR_LINE_X;
+    ball.value = ball.fromFar ? CONFIG.FAR_POINTS : CONFIG.NORMAL_POINTS;
+    ball.quality = quality;
+    ball.releaseCharge = releasedCharge;
+
+    ballEl.style.transform = ballTransform(ball.x, ball.y, 0);
+    ballEl.style.opacity = '1';
+
+    playerEl.classList.remove('charging');
+    playerEl.classList.add('shooting');
+    window.setTimeout(function () {
+      playerEl.classList.remove('shooting');
+    }, 320);
+
+    powerPanel.classList.remove('charging');
+    charge = 0;
+    lockedAim = null;
+    updatePowerUI();
+    updatePowerHint();
+
+    if (inSweet) {
+      showFloat('PERFECT!', player.x, 355, 'good', 22);
+      tone(760, 0.07, 'sine', 0.03, 1100, 0);
+    } else {
+      tone(290, 0.07, 'triangle', 0.018, 220, 0);
+    }
+
+    sfxShoot();
+  }
+
+  /* =========================================================
+     比分 / 反馈
+     ========================================================= */
+  function bumpScore() {
+    hudScore.classList.remove('bump');
+    void hudScore.offsetWidth;
+    hudScore.classList.add('bump');
+  }
+
+  function registerScore() {
+    if (ball.scored || state !== 'playing') return;
+
+    ball.scored = true;
+    ball.returnTimer = 1.15;
+    balls += ball.value;
+    hudScore.textContent = String(balls);
+    bumpScore();
+
+    const isFar = ball.fromFar;
+    showFloat(isFar ? '远投命中 +2!' : '命中 +1!', HOOP_X, 250, 'good', isFar ? 35 : 31);
+    spawnConfetti(HOOP_X, 286, isFar ? 26 : 17);
+
+    hoopEl.classList.remove('scored');
+    void hoopEl.offsetWidth;
+    hoopEl.classList.add('scored');
+    window.setTimeout(function () {
+      hoopEl.classList.remove('scored');
+    }, 660);
+
+    sfxScore(isFar);
+  }
+
+  function registerMiss() {
+    if (ball.scored || ball.missShown || state !== 'playing') return;
+    ball.missShown = true;
+
+    let text = '差一点！';
+    if (ball.quality === 'short') text = '力度不足 · 差一点！';
+    if (ball.quality === 'long') text = '力度过大 · 差一点！';
+
+    showFloat(text, clamp(ball.x, 840, 1080), clamp(ball.y - 30, 265, 520), 'bad', 20);
+    sfxMiss();
+  }
+
+  function showFloat(text, x, y, variant, size) {
+    const el = document.createElement('div');
+    el.className = 'float-text ' + (variant || '') + (size && size < 28 ? ' small' : '');
+    el.textContent = text;
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    if (size) el.style.fontSize = size + 'px';
+    fxLayer.appendChild(el);
+    window.setTimeout(function () {
+      if (el.parentNode) el.parentNode.removeChild(el);
+    }, 1200);
+  }
+
+  function spawnConfetti(x, y, count) {
+    const colors = ['#ffd23f', '#ff7a1a', '#ff5d8f', '#2fcf73', '#7fdcff', '#ffffff', '#18c2b0'];
+    for (let i = 0; i < count; i += 1) {
+      const piece = document.createElement('i');
+      piece.className = 'confetti';
+      piece.style.left = x + 'px';
+      piece.style.top = y + 'px';
+      piece.style.background = colors[i % colors.length];
+      piece.style.width = randomBetween(7, 12) + 'px';
+      piece.style.height = randomBetween(10, 18) + 'px';
+      piece.style.setProperty('--dx', randomBetween(-185, 185) + 'px');
+      piece.style.setProperty('--dy', randomBetween(-125, 170) + 'px');
+      piece.style.setProperty('--rot', randomBetween(-540, 540) + 'deg');
+      piece.style.animationDelay = randomBetween(0, 0.12) + 's';
+      fxLayer.appendChild(piece);
+      window.setTimeout(function () {
+        if (piece.parentNode) piece.parentNode.removeChild(piece);
+      }, 1500);
+    }
+  }
+
+  /* =========================================================
+     篮球物理
+     ========================================================= */
+  function collideWithRim(cx, cy) {
+    const dx = ball.x - cx;
+    const dy = ball.y - cy;
+    const dist = Math.hypot(dx, dy);
+    const minDist = BALL_R + RIM_R;
+
+    if (dist > 0 && dist < minDist) {
+      const nx = dx / dist;
+      const ny = dy / dist;
+      ball.x = cx + nx * (minDist + 0.35);
+      ball.y = cy + ny * (minDist + 0.35);
+      const vn = ball.vx * nx + ball.vy * ny;
+      if (vn < 0) {
+        ball.vx -= (1 + 0.52) * vn * nx;
+        ball.vy -= (1 + 0.52) * vn * ny;
+        ball.vx *= 0.86;
+        ball.vy *= 0.86;
+        sfxBounce();
+      }
+    }
+  }
+
+  function handleFloorHit() {
+    if (ball.y + BALL_R < FLOOR_Y) return;
+
+    ball.y = FLOOR_Y - BALL_R;
+    if (!ball.scored) {
+      registerMiss();
+      if (ball.returnTimer <= 0) ball.returnTimer = 0.78;
+    }
+
+    if (Math.abs(ball.vy) < 135 || ball.bounces >= 1 || ball.scored) {
+      ball.vy = 0;
+      ball.vx = 0;
+      ball.settled = true;
+      if (ball.returnTimer <= 0) ball.returnTimer = 0.55;
+    } else {
+      ball.vy = -Math.abs(ball.vy) * 0.48;
+      ball.vx *= 0.64;
+      ball.bounces += 1;
+      sfxBounce();
+    }
+  }
+
+  function updateBallPhysics(dt) {
+    if (!ball.inFlight) {
+      updateHeldBallDOM(dt);
+      return;
+    }
+
+    const steps = Math.max(1, Math.ceil(dt / 0.007));
+    const step = dt / steps;
+    let scoredThisFrame = false;
+
+    for (let s = 0; s < steps; s += 1) {
+      const prevY = ball.y;
+
+      ball.x += ball.vx * step;
+      ball.y += ball.vy * step;
+      ball.vy += CONFIG.GRAVITY * step;
+
+      /* 进筐检测：篮球从上方穿过篮筐平面，且落点在篮筐开口内 */
+      if (!ball.scored && prevY < RIM_Y && ball.y >= RIM_Y && ball.vy > 0) {
+        if (ball.x > RIM_LEFT + BALL_R && ball.x < RIM_RIGHT - BALL_R) {
+          registerScore();
+          scoredThisFrame = true;
+        }
+      }
+
+      /* 篮板正面碰撞 */
+      if (
+        ball.vx > 0 &&
+        ball.x + BALL_R > BOARD_X &&
+        ball.x - BALL_R < BOARD_X + 24 &&
+        ball.y > BOARD_TOP &&
+        ball.y < BOARD_BOTTOM
+      ) {
+        ball.x = BOARD_X - BALL_R;
+        ball.vx = -Math.abs(ball.vx) * 0.55;
+        ball.vy *= 0.82;
+        sfxBounce();
+      }
+
+      /* 左右篮筐边缘 */
+      collideWithRim(RIM_LEFT, RIM_Y);
+      collideWithRim(RIM_RIGHT, RIM_Y);
+
+      /* 地板 */
+      handleFloorHit();
+
+      if (ball.x < -80 || ball.x > WORLD_W + 120) {
+        if (!ball.scored) registerMiss();
+        if (ball.returnTimer <= 0) ball.returnTimer = 0.3;
+      }
+    }
+
+    ball.flightTime += dt;
+    ball.rotation += ball.vx * dt * 0.22;
+
+    /* 安全兜底：飞行太久也收球 */
+    if (ball.flightTime > 3.4 && !ball.settled) {
+      if (!ball.scored) registerMiss();
+      if (ball.returnTimer <= 0) ball.returnTimer = 0.3;
+    }
+
+    ballEl.style.transform = ballTransform(ball.x, ball.y, ball.rotation);
+
+    if (ball.returnTimer > 0) {
+      ball.returnTimer -= dt;
+      if (ball.returnTimer <= 0) {
+        resetBallToPlayer();
+        return;
+      }
+    }
+
+    if (scoredThisFrame) {
+      ballEl.style.opacity = '1';
+    }
+  }
+
+  /* =========================================================
+     游戏流程
+     ========================================================= */
+  function updatePowerUI() {
+    const percentage = clamp(charge, 0, 1);
+    powerFill.style.width = (percentage * 100) + '%';
+    powerKnob.style.left = (percentage * 100) + '%';
+
+    const a = charging && lockedAim ? lockedAim : aim;
+    const inSweet = charging && percentage >= a.min && percentage <= a.max;
+
+    powerFill.classList.toggle('perfect', inSweet);
+    powerFill.classList.toggle('over', charging && percentage > a.max);
+
+    if (state === 'ended') {
+      powerValue.textContent = '本局结束';
+    } else if (charging) {
+      powerValue.textContent = Math.round(percentage * 100) + '%' + (inSweet ? ' · 最佳区间' : '');
+    } else if (ball.inFlight) {
+      powerValue.textContent = '篮球飞行中…';
+    } else {
+      powerValue.textContent = '按住空格蓄力';
+    }
+
+    updatePowerHint();
+  }
+
+  function updatePowerHint() {
+    if (state === 'playing') {
+      if (charging) {
+        powerHint.textContent = '在绿色区间松手，更容易命中';
+      } else if (ball.inFlight) {
+        powerHint.textContent = '等待篮球回位，准备下一次出手';
+      } else {
+        powerHint.textContent = '在绿色区间松手，更容易命中';
+      }
+    } else if (state === 'ended') {
+      powerHint.textContent = '本局已结束';
+    } else {
+      powerHint.textContent = '在绿色区间松手，更容易命中';
+    }
+  }
+
+  function updateTimerUI() {
+    const shown = Math.ceil(timeLeft);
+    timerText.textContent = String(shown);
+    timerFill.style.width = clamp(timeLeft / CONFIG.GAME_SECONDS, 0, 1) * 100 + '%';
+    timerCard.classList.toggle('urgent', state === 'playing' && timeLeft <= 10);
+
+    if (state === 'playing' && shown <= 5 && shown > 0 && shown !== lastBeepSecond) {
+      lastBeepSecond = shown;
+      tone(660, 0.07, 'sine', 0.02, 660, 0);
+    }
+  }
+
+  function updatePlayer(dt) {
+    if (state !== 'playing') return;
+
+    let direction = 0;
+    if (!charging) {
+      if (keys.left && !keys.right) direction = -1;
+      if (keys.right && !keys.left) direction = 1;
+    }
+
+    const previousX = player.x;
+    if (direction !== 0) {
+      player.x += direction * CONFIG.PLAYER_SPEED * dt;
+      player.x = clamp(player.x, CONFIG.PLAYER_MIN_X, CONFIG.PLAYER_MAX_X);
+    }
+
+    player.moving = Math.abs(player.x - previousX) > 0.001;
+
+    if (player.moving) {
+      refreshAim();
+      updateZoneUI();
+    }
+
+    updatePlayerDOM();
+  }
+
+  function update(dt) {
+    if (state !== 'playing') return;
+
+    timeLeft = Math.max(0, (roundEndsAt - performance.now()) / 1000);
+    updateTimerUI();
+
+    if (timeLeft <= 0) {
+      timeLeft = 0;
+      updateTimerUI();
+      endGame();
+      return;
+    }
+
+    if (charging) {
+      charge = Math.min(1, charge + CONFIG.CHARGE_RATE * dt);
+      updatePowerUI();
+    }
+
+    updatePlayer(dt);
+    updateBallPhysics(dt);
+  }
+
+  function startGame() {
+    if (state === 'playing') return;
+
+    ensureAudio();
+
+    state = 'playing';
+    balls = 0;
+    timeLeft = CONFIG.GAME_SECONDS;
+    roundEndsAt = performance.now() + CONFIG.GAME_SECONDS * 1000;
+    lastFrame = performance.now();
+    lastBeepSecond = -1;
+    resultSent = false;
+    endShownAt = 0;
+
+    charging = false;
+    charge = 0;
+    lockedAim = null;
+    player.x = CONFIG.PLAYER_START_X;
+    player.moving = false;
+    keys.left = false;
+    keys.right = false;
+
+    startOverlay.classList.add('is-hidden');
+    startOverlay.setAttribute('aria-hidden', 'true');
+    endOverlay.classList.add('is-hidden');
+    endOverlay.setAttribute('aria-hidden', 'true');
+    hoopEl.classList.remove('scored');
+    playerEl.classList.remove('charging', 'walking', 'shooting');
+    powerPanel.classList.remove('charging');
+
+    hudScore.textContent = '0';
+    aim = computeAimAt(player.x);
+    renderAimUI();
+    setBallHeldInstant();
+    updatePlayerDOM();
+    updateZoneUI();
+    updatePowerUI();
+    updatePowerHint();
+    updateTimerUI();
+    ballEl.style.opacity = '1';
+
+    if (startBtn) startBtn.blur();
+    if (replayBtn) replayBtn.blur();
+
+    sfxStart();
+  }
+
+  function endGame() {
+    if (state !== 'playing') return;
+
+    state = 'ended';
+    endShownAt = performance.now();
+    charging = false;
+    charge = 0;
+    lockedAim = null;
+    player.moving = false;
+    keys.left = false;
+    keys.right = false;
+    playerEl.classList.remove('charging', 'walking', 'shooting');
+    powerPanel.classList.remove('charging');
+
+    const credits = Math.min(balls * CONFIG.CREDITS_PER_BALL, CONFIG.MAX_CREDITS);
+
+    endBalls.textContent = String(balls);
+    endCredits.textContent = String(credits);
+
+    if (balls === 0) {
+      endMessage.textContent = '别灰心，跑起来找手感，下一局一定行！';
+    } else if (credits >= CONFIG.MAX_CREDITS) {
+      endMessage.textContent = '太强了！60 秒打出满分表现，学分直接拉满！';
+    } else if (balls >= 3) {
+      endMessage.textContent = '手感火热！离满学分只差一点，再来一局？';
+    } else {
+      endMessage.textContent = '不错！试试远投，一次就能拿 2 球更划算。';
+    }
+
+    updatePowerUI();
+    updatePowerHint();
+    updateTimerUI();
+
+    sendResult(balls, credits); // 每局结束时发送且只发送一次
+
+    endOverlay.classList.remove('is-hidden');
+    endOverlay.setAttribute('aria-hidden', 'false');
+    spawnConfetti(600, 80, credits >= 4 ? 46 : 22);
+    sfxEnd();
+
+    window.setTimeout(function () {
+      if (replayBtn) replayBtn.focus({ preventScroll: true });
+    }, 280);
+  }
+
+  function sendResult(ballCount, credits) {
+    if (resultSent) return;
+    resultSent = true;
+
+    const payload = {
+      type: 'basketball-result',
+      balls: ballCount,
+      credits: credits
+    };
+
+    try {
+      window.parent.postMessage(payload, '*');
+      console.info('[basketball] result sent to parent:', payload);
+    } catch (err) {
+      console.warn('[basketball] postMessage failed:', err);
+    }
+  }
+
+  /* =========================================================
+     输入
+     ========================================================= */
+  function isLeftKey(code) {
+    return code === 'ArrowLeft' || code === 'KeyA';
+  }
+
+  function isRightKey(code) {
+    return code === 'ArrowRight' || code === 'KeyD';
+  }
+
+  document.addEventListener('keydown', function (event) {
+    if (isLeftKey(event.code) || isRightKey(event.code) || event.code === 'Space') {
+      event.preventDefault();
+    }
+
+    if (state === 'menu') {
+      if (event.code === 'Space' || event.code === 'Enter') {
+        startGame();
+      }
+      return;
+    }
+
+    if (state === 'ended') {
+      if (event.code === 'Enter' && performance.now() - endShownAt > 350) {
+        startGame();
+      }
+      return;
+    }
+
+    if (state !== 'playing') return;
+
+    if (isLeftKey(event.code)) keys.left = true;
+    if (isRightKey(event.code)) keys.right = true;
+
+    if (event.code === 'Space' && !event.repeat && !charging && !ball.inFlight) {
+      startCharge();
+    }
+  }, { passive: false });
+
+  document.addEventListener('keyup', function (event) {
+    if (isLeftKey(event.code)) keys.left = false;
+    if (isRightKey(event.code)) keys.right = false;
+
+    if (event.code === 'Space') {
+      event.preventDefault();
+      if (state === 'playing' && charging) {
+        releaseShot();
+      }
+    }
+  }, { passive: false });
+
+  window.addEventListener('blur', function () {
+    keys.left = false;
+    keys.right = false;
+    if (charging) cancelCharge();
+  });
+
+  if (startBtn) {
+    startBtn.addEventListener('click', function () {
+      startGame();
+    });
+  }
+
+  if (replayBtn) {
+    replayBtn.addEventListener('click', function () {
+      startGame();
+    });
+  }
+
+  /* =========================================================
+     自适应缩放
+     ========================================================= */
+  function resizeStage() {
+    const margin = Math.min(window.innerWidth, window.innerHeight) < 700 ? 8 : 24;
+    const scale = Math.min(
+      (window.innerWidth - margin * 2) / WORLD_W,
+      (window.innerHeight - margin * 2) / 675
+    );
+    stage.style.transform = 'scale(' + Math.max(0.2, scale) + ')';
+  }
+
+  window.addEventListener('resize', resizeStage);
+  window.addEventListener('orientationchange', resizeStage);
+
+  /* =========================================================
+     启动
+     ========================================================= */
+  function boot() {
+    resizeStage();
+    aim = computeAimAt(player.x);
+    renderAimUI();
+    updatePlayerDOM();
+    updateZoneUI();
+    updatePowerUI();
+    updateTimerUI();
+    setBallHeldInstant();
+    startOverlay.classList.remove('is-hidden');
+    startOverlay.setAttribute('aria-hidden', 'false');
+    endOverlay.classList.add('is-hidden');
+    endOverlay.setAttribute('aria-hidden', 'true');
+    window.requestAnimationFrame(loop);
+  }
+
+  function loop(now) {
+    const dt = Math.min(Math.max((now - lastFrame) / 1000, 0), 0.05);
+    lastFrame = now;
+
+    if (state === 'playing') {
+      update(dt);
+    } else if (state === 'menu') {
+      updateHeldBallDOM(dt);
+    }
+
+    window.requestAnimationFrame(loop);
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>
