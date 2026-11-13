@@ -18,6 +18,7 @@
   #overlay.hidden { opacity: 0; pointer-events: none; }
   #hud { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); text-align: center; color: #fff; text-shadow: 0 2px 5px #243746; pointer-events: none; z-index: 2; }
   #stats { font-weight: 700; font-size: 19px; }
+  #floorBadge { margin-top:2px; font-size:13px; font-weight:700; opacity:.9; }
   #skipBadge { display:none; color:#ff4f4f; font-weight:900; font-size:20px; margin-top:4px; text-shadow:0 2px 5px #3a0000; }
   #alertBar { display:none; width:220px; height:10px; margin:7px auto 0; border:1px solid rgba(255,255,255,.8); border-radius:8px; background:rgba(20,30,35,.6); overflow:hidden; }
   #alertFill { width:0; height:100%; background:hsl(48, 95%, 52%); transition:width .08s linear; }
@@ -51,7 +52,7 @@
 </head>
 <body>
 <div id="overlay" class="prestart"><h1>校园逃跑计划</h1><div id="startButtons"></div><p>WASD 移动 · 鼠标视角</p></div>
-<div id="hud"><div id="stats"></div><div id="skipBadge">⚠ 逃课中</div><div id="alertBar"><div id="alertFill"></div></div><div id="suspicionRow" style="display:none">怀疑值</div><div id="suspicionBar"><div id="suspicionFill"></div></div><div id="questRow" style="display:none"></div><div id="escapeHint" style="display:none">学分已满，去校门离开校园！</div><div id="help">WASD 移动 · 鼠标视角 · E 开门/关门 · F 对话/打篮球/交互</div></div>
+<div id="hud"><div id="stats"></div><div id="floorBadge">1F</div><div id="skipBadge">⚠ 逃课中</div><div id="alertBar"><div id="alertFill"></div></div><div id="suspicionRow" style="display:none">怀疑值</div><div id="suspicionBar"><div id="suspicionFill"></div></div><div id="questRow" style="display:none"></div><div id="escapeHint" style="display:none">学分已满，去校门离开校园！</div><div id="help">WASD 移动 · 鼠标视角 · E 开门/关门 · F 对话/打篮球/交互</div></div>
 <div id="crosshair"></div><div id="prompt">按 E 开门</div><div id="dialog"><img id="dialogPortrait" alt=""><span id="dialogName">严老师</span><span id="dialogText"></span><div id="chatBox" style="display:none"><div id="chatMeta"></div><input id="chatInput" type="text" maxlength="120" placeholder="输入你想说的话…"><button id="chatSend" type="button">发送</button><span id="chatHint">Esc 关闭</span></div></div>
 <div id="toast"></div><div id="summary"></div><div id="fade"></div>
 <div id="basketballOverlay"><button id="basketballClose" type="button">✕ 关闭</button><iframe title="篮球小游戏" src="about:blank"></iframe></div>
@@ -83,6 +84,25 @@
   };
   const gameState = { day:1, credits:0, maxCredits:60, caught:0, caughtMax:5, alert:0, suspicion:0, periodIndex:0, periodTimeLeft:0, skipping:false, todayAttended:0, todayTotal:0, todaySkipped:0, todayCredits:0, todayBasketballCredits:0, lastBasketballCreditDay:0, minigameOpen:false, inStrangeSpace:false, strangeTimeLeft:0, finished:false, schedule:[], sessionFlag:{rollCalled:false,skipRecorded:false}, panelOpen:false, chatOpen:false, npcState:Object.fromEntries(Object.entries(CONFIG.NPC_INITIAL_RELATION).map(([id,relation])=>[id,{relation:{...relation},memory:[],history:'',lastAttendedDay:0,assistedDay:0,deductDay:0}])), sideQuestData:null, mysteryQuestData:{ quests:[{id:'mystery1',day:4,itemName:'丢失的教案',reward:6,status:'locked'},{id:'mystery2',day:6,itemName:'第零页',reward:8,status:'locked'}],holdingItem:null }, strangeSpaceData:{lastEnterDay:0,enteredToday:false} };
   const DOOR_WIDTH = 2.6;
+  const FLOOR_H = 3.6;
+  let playerGroundY = 0;
+  function surfaceHeightsAt(x,z) {
+    const inRect=(x0,x1,z0,z1)=>x>=x0&&x<=x1&&z>=z0&&z<=z1;
+    const hs=[];
+    if(inRect(-10,10,-23,-11.2)||inRect(-5.9,.6,-11.2,6.8)||inRect(6.2,10,1.8,6.8)||inRect(-10,-5.9,1.8,6.8)||inRect(.6,6.2,-11.2,6.8))hs.push(FLOOR_H);
+    if(inRect(.8,6,-8.875,-7.525))hs.push(3.9); if(inRect(.8,6,-6.575,-5.225))hs.push(4.18); if(inRect(.8,6,-4.275,-2.925))hs.push(4.46);
+    if(inRect(-10,-5.9,-11.2,-9))hs.push(FLOOR_H);
+    if(inRect(6.2,10,-11.2,-9))hs.push(FLOOR_H);
+    if(inRect(-9.9,-8.1,-10.6,-5.2))hs.push(1.8*(z+10.6)/5.4);
+    if(inRect(-9.9,-6,-5.2,-3.6))hs.push(1.8);
+    if(inRect(-7.9,-6.1,-9,-3.6))hs.push(1.8+1.8*(-3.6-z)/5.4);
+    if(inRect(8.25,9.95,-10.6,-5.2))hs.push(1.8*(z+10.6)/5.4);
+    if(inRect(6.3,9.95,-5.2,-3.6))hs.push(1.8);
+    if(inRect(6.3,8.05,-9,-3.6))hs.push(1.8+1.8*(-3.6-z)/5.4);
+    return hs;
+  }
+  function groundHeightAt(x,z,curY) { const hs=surfaceHeightsAt(x,z); if(!hs.length)return 0; let best=null; for(const h of hs)if(h<=curY+.65&&(best===null||h>best))best=h; return best===null?curY:best; }
+
   const playerRadius = .34;
   const forward = new THREE.Vector3();
   const right = new THREE.Vector3();
@@ -147,117 +167,116 @@
   loadTex('facade', 'assets/tex/facade-teaching.webp'); loadTex('glass', 'assets/tex/glass-canteen.webp');
   loadTex('grass', 'assets/tex/grass.webp'); loadTex('paving', 'assets/tex/paving.webp');
   const colliders = [];
-  function box(name, x, y, z, sx, sy, sz, color, solid = false) {
+  function addColliderBounds(minX, maxX, minZ, maxZ, y0, y1) { colliders.push({ bounds:{minX,maxX,minZ,maxZ}, y0, y1 }); }
+  function box(name, x, y, z, sx, sy, sz, color, solid = false, y0, y1) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat(color));
     mesh.name = name; mesh.position.set(x, y, z); scene.add(mesh);
-    if (solid) colliders.push({ mesh, sx, sz });
+    if (solid) { const c={ mesh, sx, sz }; if(y0!==undefined){c.y0=y0;c.y1=y1;} colliders.push(c); }
     return mesh;
   }
-  // 教室，前墙在 -Z，后墙在 +Z；两侧外侧是一条贯通走廊。
-  const wallSegmentWidth = (20 - DOOR_WIDTH) / 2;
-  const wallSegmentOffset = DOOR_WIDTH / 2 + wallSegmentWidth / 2;
-  box('class floor', 0, -0.12, 0, 20, .24, 18, 0xe8d8ad);
-  box('corridor floor', 0, -.13, 16, 20, .22, 14, 0xc5dce0);
-  box('front corridor floor', 0, -.13, -16, 20, .22, 14, 0xc5dce0);
-  box('ceiling', 0, 6.1, 0, 20, .2, 18, 0xf7f1dc);
-  box('left wall', -10, 3, 0, .35, 6, 18, 0xf0c987, true);
-  box('right wall', 10, 3, 0, .35, 6, 18, 0xf0c987, true);
-  // 墙段留下门洞，门洞宽 2.6（与门板和碰撞一致），门高 3。
-  for (const z of [-9, 9]) {
-    box('front/back wall left', -wallSegmentOffset, 3, z, wallSegmentWidth, 6, .35, 0xf0c987, true);
-    box('front/back wall right', wallSegmentOffset, 3, z, wallSegmentWidth, 6, .35, 0xf0c987, true);
-    box('wall above doorway', 0, 4.65, z, DOOR_WIDTH, 2.7, .35, 0xf0c987, false);
-  }
-  box('corridor left wall', -10, 2.5, 16, .35, 5, 14, 0xb7d0d5, true);
-  box('corridor right wall', 10, 2.5, 16, .35, 5, 14, 0xb7d0d5, true);
-  box('corridor end left', -5.85, 2.5, 23, 7.7, 5, .35, 0xb7d0d5, true);
-  box('corridor end right', 5.85, 2.5, 23, 7.7, 5, .35, 0xb7d0d5, true);
-  box('corridor end lintel', 0, 4.3, 23, 3.4, 1.4, .35, 0xb7d0d5, false);
+  // 教学楼重建：墙体视觉与分层碰撞分开登记。
+  const B1={y0:-.6,y1:1.9}, B2={y0:1.7,y1:5.6};
   const HOOP_POS = { x:-48.6, z:79 }, HOOP_TRIGGER_RADIUS = 2.6;
-  box('front corridor left wall', -10, 2.5, -16, .35, 5, 14, 0xb7d0d5, true);
-  box('front corridor right wall', 10, 2.5, -16, .35, 5, 14, 0xb7d0d5, true);
-  box('front corridor end', 0, 2.5, -23, 20, 5, .35, 0xb7d0d5, true);
-
-  // 黑板与讲台。
-  box('blackboard', 0, 3.25, -8.72, 7.2, 2.2, .16, 0x176d4b);
-  box('board frame top', 0, 4.39, -8.6, 7.5, .12, .22, 0xd7a94f);
-  box('board frame bottom', 0, 2.11, -8.6, 7.5, .12, .22, 0xd7a94f);
-  box('podium', 0, .65, -6.4, 2.1, 1.3, 1.1, 0xc47a42, true);
-
-  // 每张桌椅由桌面、四条桌腿和椅面椅背组成。
-  for (let row = 0; row < 5; row++) {
-    const z = -3.6 + row * 2.5;
-    for (let col = 0; col < 4; col++) {
-      const x = -6.1 + col * 4.05;
-      box('desk top', x, 1.45, z, 2.15, .18, 1.05, 0xd59a55);
-      for (const dx of [-.88, .88]) for (const dz of [-.38, .38]) box('desk leg', x + dx, .72, z + dz, .12, 1.35, .12, 0x8f603a);
-      box('chair seat', x, .76, z + 1.05, 1.05, .14, .85, 0x4d9ab0);
-      box('chair back', x, 1.25, z + 1.43, 1.05, .9, .12, 0x4d9ab0);
-      colliders.push({ bounds: { minX: x - 2.15 / 2, maxX: x + 2.15 / 2, minZ: z - 1.05 / 2, maxZ: z + 1.43 + .12 / 2 } });
-    }
+  function wall(name,x,y,z,sx,sy,sz,floor=0,color=0xf0c987){box(name,x,y,z,sx,sy,sz,color);addColliderBounds(x-sx/2,x+sx/2,z-sz/2,z+sz/2,...(floor? [B2.y0,B2.y1]:[B1.y0,B1.y1]));}
+  function makeDoor(label,z,hingeX,direction,axis='z',y=0){const pivot=new THREE.Group();const plane=z,hinge=hingeX;if(axis==='x')pivot.position.set(plane,y,hinge);else pivot.position.set(hingeX,y,z);scene.add(pivot);const width=DOOR_WIDTH;const leaf=new THREE.Mesh(axis==='x'?new THREE.BoxGeometry(.18,2.95,width):new THREE.BoxGeometry(width,2.95,.18),mat(0x8e5638));if(axis==='x')leaf.position.set(0,1.475,direction*width/2);else leaf.position.set(direction*width/2,1.475,0);pivot.add(leaf);const handle=new THREE.Mesh(new THREE.SphereGeometry(.075,12,8),mat(0xf5d66f));if(axis==='x')handle.position.set(direction*.12,1.45,direction*(width-.22));else handle.position.set(direction*(width-.22),1.45,direction>0?.12:-.12);pivot.add(handle);const door={label,pivot,floorY:y,z:axis==='x'?hinge: z,hingeX:axis==='x'?plane:hingeX,direction,open:false,passable:false,width,cachedBounds:null,axis,plane,hinge};door.cx=axis==='x'?plane:hinge+direction*width/2;door.cz=axis==='x'?hinge+direction*width/2:plane;door.collider={door};colliders.push(door.collider);return door;}
+  function makeSign(text,w,h,bg,fg){const canvas=document.createElement('canvas');canvas.width=512;canvas.height=Math.round(512*h/w);const ctx=canvas.getContext('2d');ctx.fillStyle=bg;ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle=fg;ctx.font=`bold ${Math.round(canvas.height*.58)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,canvas.width/2,canvas.height/2);const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;const mesh=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:texture,side:THREE.DoubleSide}));mesh.name=`sign ${text}`;return mesh;}
+  function addSign(text,w,h,bg,fg,x,y,z,rotationY=0){const sign=makeSign(text,w,h,bg,fg);sign.position.set(x,y,z);sign.rotation.y=rotationY;scene.add(sign);return sign;}
+  function floorTile(name,x,z,sx,sz,y=0,color=0xe8d8ad){box(name,x,y-.12,z,sx,.24,sz,color);}
+  function wallDoorZ(name,x0,x1,z,doorX,floor=0){const h=floor?3.6:6;const y=floor+ h/2;for(const [l,r] of [[x0,doorX-DOOR_WIDTH/2],[doorX+DOOR_WIDTH/2,x1]])if(r-l>.05)wall(name,(l+r)/2,y,z,r-l,h,.28,floor);box(name+' lintel',doorX,floor+3.6,z,DOOR_WIDTH,1.2,.28,0xf0c987);}
+  function roomDoor(label,z,x,floor=0,dir=1){doors.push(makeDoor(label,z,x-dir*DOOR_WIDTH/2,dir,'z',floor));}
+  const doors=[];
+  function roomFloor(x0,x1,z0,z1,floor=0,name='room floor',color=0xe8d8ad){floorTile(name,(x0+x1)/2,(z0+z1)/2,x1-x0,z1-z0,floor,color);}
+  // 主走廊、房间地面与大厅。
+  roomFloor(-10,10,-23,-14.6,0,'1F north floor'); roomFloor(-10,10,-14.6,-11.2,0,'corridor floor',0xc5dce0);
+  wall('1F corridor west end',-10,3,-12.9,.28,6,3.4);wall('1F corridor east end',10,3,-12.9,.28,6,3.4);
+  roomFloor(-10,10,-11.2,6.8,0,'1F middle floor'); roomFloor(-10,10,6.8,23,0,'1F lobby floor',0xc5dce0);
+  // 1F 北排四室；分隔墙及南侧门洞。
+  for(const [label,x0,x1,dx] of [['男卫生间',-10,-6.9,-8.45],['女卫生间',-6.9,-3.8,-5.35],['教师办公室',-3.8,2.4,-.7],['普通教室A',2.4,10,6.2]]){roomFloor(x0,x1,-23,-14.6);wall(label+' north', (x0+x1)/2,3,-23,x1-x0,6,.28);wallDoorZ(label+' south',x0,x1,-14.6,dx);roomDoor(label+'门（1F）',-14.6,dx,0);addSign(label,1.6,.48,'#5a4632','#fff3d6',dx,2.5,-14.42);}
+  for(const x of [-6.9,-3.8,2.4])wall('1F north partition',x,3,-18.8,.22,6,8.4);
+  // 1F 中区边界与房间隔墙。
+  wall('1F north boundary west',-8.925,3,-11.2,2.15,6,.28);addColliderBounds(-10,-7.85,-11.34,-11.06,B2.y0,B2.y1);box('stair door lintel west',-6.55,4.48,-11.2,2.6,3.05,.28,0xf0c987);wall('1F north boundary east',9.075,3,-11.2,1.85,6,.28);addColliderBounds(8.15,10,-11.34,-11.06,B2.y0,B2.y1);box('stair door lintel east',6.85,4.48,-11.2,2.6,3.05,.28,0xf0c987);
+  roomDoor('楼梯间西北门',-11.2,-6.55,0);roomDoor('楼梯间东北门',-11.2,6.85,0);
+  doors.push(makeDoor('楼梯间西门',-10,-11.3,1,'x',0));
+  wall('west stair west wall',-10,3,-3.45,.28,6,10.3);wall('east stair east wall',10,3,-4.7,.28,6,13);
+  // 玩家教室南北门与侧墙。
+  wallDoorZ('class north wall',-5.9,6.2,-11.2,0); roomDoor('前门',-11.2,0,0,1);
+  wallDoorZ('class south wall',-5.9,6.2,6.8,0); roomDoor('后门',6.8,0,0,-1);
+  wall('class west wall',-5.9,3,-2.2,.24,6,18);wall('class east wall',6.2,3,-2.2,.24,6,18);
+  // 西储物间封闭与假门；大厅东耳房敞开。
+  wall('storage west wall',-10,3,4.3,.28,6,5);wall('storage south wall',-8,3,6.8,4,6,.28);wall('storage east wall',-5.9,3,4.3,.24,5,5);
+  wall('storage north wall',-7.95,3,1.8,4.1,6,.28);wall('east stair south wall',8.1,3,1.8,3.8,6,.28);
+  box('storage fake door',-8,1.45,6.62,1.7,2.9,.12,0x8e5638);addSign('储物间',1.3,.45,'#5a4632','#fff3d6',-8,3.2,6.48);
+  // 1F 南大厅外墙与正门。
+  wallDoorZ('lobby south wall',-10,10,23,0);roomDoor('正门',23,0,0,1);
+  wall('lobby west wall',-10,3,14.9,.28,6,16.2);wall('lobby east wall',10,3,14.9,.28,6,16.2);
+  // 两座楼梯实心踏步，踏步本身不参与碰撞。
+  function stairSet(side){const west=side==='west',x1=west?-9.9:8.25,x2=west?-8.1:9.95,px1=west?-9.9:6.3,px2=west?-6:9.95,rx1=west?-7.9:6.3,rx2=west?-6.1:8.05;
+    for(let i=0;i<10;i++){const rise=.18*(i+1),z=-10.6+.54*(i+.5);box(side+' stair run1', (x1+x2)/2,rise/2,z,x2-x1,rise,.54,0xaaa397);}
+    box(side+' stair landing', (px1+px2)/2,.9,-4.4,px2-px1,1.8,1.6,0xb7aea0);
+    for(let i=0;i<10;i++){const rise=1.8+.18*(i+1),z=-3.6-.54*(i+.5);box(side+' stair run2',(rx1+rx2)/2,(rise+1.8)/2,z,rx2-rx1,rise-1.8,.54,0xaaa397);}
+    box(side+' 2F landing',(west?-7.95:8.1),3.475,-10.1,west?4.1:3.8, .25,2.2,0xb7aea0);
+    const line=west?-8:8.15;addColliderBounds(line-.12,line+.12,-10.2,-5.2,B1.y0,2.6);addColliderBounds(line-.12,line+.12,-9,-5.2,1.7,5.6);
+    if(west)addColliderBounds(-9.9,-8.1,-9.1,-8.85,3,5.6);else addColliderBounds(8.25,9.95,-9.1,-8.85,3,5.6);
+    for(const x of (west?[-9.8,-8.2]:[8.35,9.85])){const rail=box(side+' stair handrail',x,1.55,-7.9,.08,.12,5.4,0x59636b);rail.rotation.x=west?-.322:.322;for(const z of [-10.3,-9.1,-7.9,-6.7,-5.5])box(side+' stair baluster',x,1.1+(z+10.6)*.32,z,.06,.85,.06,0x59636b);}
+    // 2F arrival room door and landing barrier gate.
+    roomDoor(side==='west'?'西楼梯2F门':'东楼梯2F门',-11.2,west?-6.55:6.85,3.6);
+    const gx=west?-9:9.1;for(let i=0;i<7;i++)box(side+' construction gate bar',gx+(west?i*.25:-.75+i*.25),4.15,-8.98,.055,2.3,.08,0x59636b);
+    box(side+' construction gate rail',gx,5.1,-8.98,1.8,.08,.08,0x59636b);addSign('施工中',1.4,.48,'#9b3028','#ffffff',gx,5.45,-8.82);
+    for(let i=0;i<3;i++)box(side+' fake stair',gx,3.78+i*.18,-8.6+i*.45,1.5,.18,.45,0xc8c0b1);
+    addSign('1F',.7,.4,'#3d5a73','#ffffff',west?-9.75:9.72,2.5,-10.8,west?Math.PI/2:-Math.PI/2);addSign('2F',.7,.4,'#3d5a73','#ffffff',west?-9.75:9.72,5.4,-10.5,west?Math.PI/2:-Math.PI/2);
   }
-
-  function makeDoor(label, z, hingeX, direction, axis = 'z') {
-    const pivot = new THREE.Group();
-    const plane = z, hinge = hingeX;
-    if (axis === 'x') pivot.position.set(plane, 0, hinge); else pivot.position.set(hingeX, 0, z); scene.add(pivot);
-    const width = DOOR_WIDTH;
-    const leaf = new THREE.Mesh(axis === 'x' ? new THREE.BoxGeometry(.18, 2.95, width) : new THREE.BoxGeometry(width, 2.95, .18), mat(0x8e5638));
-    if (axis === 'x') leaf.position.set(0, 1.475, direction * width / 2); else leaf.position.set(direction * width / 2, 1.475, 0); pivot.add(leaf);
-    const handle = new THREE.Mesh(new THREE.SphereGeometry(.075, 12, 8), mat(0xf5d66f));
-    if (axis === 'x') handle.position.set(direction * .12, 1.45, direction * (width - .22)); else handle.position.set(direction * (width - .22), 1.45, direction > 0 ? .12 : -.12); pivot.add(handle);
-    const door = { label, pivot, z: axis === 'x' ? hinge : z, hingeX: axis === 'x' ? plane : hingeX, direction, open: false, passable:false, width, cachedBounds: null, axis, plane, hinge };
-    door.cx = axis === 'x' ? plane : hinge + direction * width / 2;
-    door.cz = axis === 'x' ? hinge + direction * width / 2 : plane;
-    door.collider = { door };
-    colliders.push(door.collider);
-    return door;
-  }
-  const doors = [makeDoor('前门', -9, -1.2, 1), makeDoor('后门', 9, 1.2, -1), makeDoor('正门', 23, -1.3, 1)];
-
-  function makeSign(text, w, h, bg, fg) {
-    const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = Math.round(512 * h / w);
-    const ctx = canvas.getContext('2d'); ctx.fillStyle = bg; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = fg; ctx.font = `bold ${Math.round(canvas.height * .58)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-    const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide })); mesh.name = `sign ${text}`; return mesh;
-  }
-  function addSign(text, w, h, bg, fg, x, y, z, rotationY = 0) { const s = makeSign(text, w, h, bg, fg); s.position.set(x, y, z); s.rotation.y = rotationY; scene.add(s); return s; }
-  // 教学楼大厅（后走廊改造）：所有新增物件均为纯视觉，不参与碰撞。
-  box('lobby ceiling side', -6.9, 4.92, 16, 6.2, .18, 14.2, 0xefe8d8);
-  box('lobby ceiling side', 6.9, 4.92, 16, 6.2, .18, 14.2, 0xefe8d8);
-  box('lobby ceiling raised', 0, 5.5, 16, 7.6, .18, 14.2, 0xf7f1dc);
-  for (const x of [-3.85, 3.85]) { const strip = new THREE.Mesh(new THREE.BoxGeometry(.08, .08, 14), new THREE.MeshLambertMaterial({color:0xffe9b8, emissive:0xffca7a, emissiveIntensity:1})); strip.name='lobby light strip'; strip.position.set(x,5.36,16); scene.add(strip); }
-  for (const z of [12,16,20]) {
-    const rod = new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.66), mat(0x59636b)); rod.name='lobby pendant rod'; rod.position.set(0,5.05,z); scene.add(rod);
-    const lamp = new THREE.Mesh(new THREE.SphereGeometry(.22,12,10), new THREE.MeshLambertMaterial({color:0xfff3cf, emissive:0xffca7a, emissiveIntensity:.95})); lamp.name='lobby pendant lamp'; lamp.position.set(0,4.6,z); scene.add(lamp);
-  }
-  const lobbyLight = new THREE.PointLight(0xffd9a0,18,19); lobbyLight.position.set(0,4.2,16); scene.add(lobbyLight);
-  for (const [x,z] of [[9.66,10.2],[9.66,15.9],[9.66,21.6],[-9.66,13.4],[-9.66,21.6]]) {
-    box('lobby pilaster',x,2.5,z,.34,5,.8,0xd9cfb8);
-    box('lobby pilaster base',x,.18,z,.44,.36,.95,0xcabfa8);
-  }
-  box('lobby notice board',9.8,1.9,13.5,.08,1.7,3.6,0x37474f);
-  for (const [y,z,color] of [[2.25,12.9,0xe8833a],[2.25,14.1,0x4d9ab0],[1.55,12.9,0xd94f4f],[1.55,14.1,0x7a9e7e]]) box('lobby poster',9.73,y,z,.04,.62,1.0,color);
-  addSign('公告栏',1.6,.5,'#37474f','#ffffff',9.72,3.05,13.5,-Math.PI/2);
-  box('lobby display board',-9.8,1.9,18.5,.08,1.7,3.6,0x5a4632);
-  for (const [y,z,color] of [[2.25,17.9,0x9a6fc0],[2.25,19.1,0xd9a441],[1.55,17.9,0x3f6fb5],[1.55,19.1,0xc0533f]]) box('lobby poster',-9.73,y,z,.04,.62,1.0,color);
-  addSign('校园文化墙',2.2,.5,'#5a4632','#ffffff',-9.72,3.05,18.5,Math.PI/2);
-  box('lobby stair door',-9.8,1.45,10.8,.1,2.9,1.5,0x8e5638);
-  box('lobby stair door frame',-9.8,3.0,10.8,.12,.18,1.7,0x6e5638);
-  addSign('楼梯间',1.1,.45,'#5a4632','#fff3d6',-9.72,3.35,10.8,Math.PI/2);
-  addSign('教学楼大厅',3.4,.8,'#3d5a73','#ffffff',0,4.35,22.78,Math.PI);
-  addSign('楼层导览 · 1F 大厅',2.4,.6,'#3d5a73','#ffffff',9.72,2.6,19.6,-Math.PI/2);
-  for (const [x,z] of [[9,17.5],[-9,14.5]]) {
-    box('lobby bench seat',x,.55,z,.55,.12,2.2,0x9a6a42);
-    box('lobby bench back',x+(x>0?.32:-.32),.88,z,.1,.5,2.2,0x9a6a42);
-    for (const dz of [-.8,.8]) box('lobby bench leg',x,.27,z+dz,.12,.55,.12,0x59636b);
-  }
-  for (const [x,z] of [[-8.9,11],[8.9,11],[-8.9,21.8],[8.9,21.8]]) {
-    box('lobby planter',x,.25,z,.7,.5,.7,0x6d4c33);
-    const shrub = new THREE.Mesh(new THREE.SphereGeometry(.5,10,8),mat(0x4e8f3f)); shrub.name='lobby shrub'; shrub.position.set(x,.95,z); scene.add(shrub);
-    const shrubTop = new THREE.Mesh(new THREE.SphereGeometry(.34),mat(0x5da34c)); shrubTop.name='lobby shrub'; shrubTop.position.set(x+(x>0?-.25:.25),1.25,z+.15); scene.add(shrubTop);
-  }
+  stairSet('west');stairSet('east');
+  box('east rooftop fake door',9.82,5.05,-10.1,.12,2.9,1.7,0x8e5638);addSign('天台',1.1,.45,'#5a4632','#fff3d6',9.7,6.8,-10.1,-Math.PI/2);
+  // 2F floors: north row and corridor/middle rooms; stairwells remain open except arrival pads.
+  roomFloor(-10,10,-23,-14.6,3.6,'2F north floor');roomFloor(-10,10,-14.6,-11.2,3.6,'2F corridor floor',0xc5dce0);
+  wall('2F corridor west end',-10,5.4,-12.9,.28,3.6,3.4,3.6);wall('2F corridor east end',10,5.4,-12.9,.28,3.6,3.4,3.6);
+  roomFloor(-5.9,.6,-11.2,6.8,3.6,'2F D floor');roomFloor(.6,6.2,-11.2,6.8,3.6,'2F multimedia floor');
+  roomFloor(-10,-5.9,1.8,6.8,3.6,'2F D wing floor');roomFloor(6.2,10,1.8,6.8,3.6,'2F multimedia wing floor');
+  roomFloor(-10,-5.9,-11.2,-9,3.6,'west stair landing floor',0xb7aea0);roomFloor(6.2,10,-11.2,-9,3.6,'east stair landing floor',0xb7aea0);
+  // 2F north rooms.
+  for(const [label,x0,x1,dx] of [['男卫生间',-10,-6.9,-8.45],['女卫生间',-6.9,-3.8,-5.35],['教研室',-3.8,2.4,-.7],['普通教室C',2.4,10,6.2]]){roomFloor(x0,x1,-23,-14.6,3.6);wall(label+' 2F north',(x0+x1)/2,5.4,-23,x1-x0,3.6,.28,3.6);wallDoorZ(label+' 2F south',x0,x1,-14.6,dx,3.6);roomDoor(label+'门（2F）',-14.6,dx,3.6);addSign(label,1.6,.48,'#5a4632','#fff3d6',dx,6.2,-14.42);}
+  for(const x of [-6.9,-3.8,2.4])wall('2F north partition',x,5.4,-18.8,.22,3.6,8.4,3.6);
+  // 2F outer and room partition walls; D/multimedia divide only the north body.
+  wall('2F middle west exterior',-10,5.4,-4.7,.28,3.6,13,3.6);wall('2F middle east exterior',10,5.4,-4.7,.28,3.6,13,3.6);
+  wallDoorZ('2F D north wall',-5.9,.6,-11.2,-2.6,3.6);roomDoor('普通教室D门（2F）',-11.2,-2.6,3.6,-1);
+  wallDoorZ('2F multimedia north wall',.6,6.2,-11.2,3.4,3.6);roomDoor('多媒体教室门（2F）',-11.2,3.4,3.6,-1);
+  wall('2F D west',-5.9,5.4,-4.3,.22,3.6,13.8,3.6);wall('2F D west south',-5.9,5.4,5.7,.22,3.6,2.2,3.6);wall('2F D/multimedia partition',.6,5.4,-2.2,.22,3.6,18,3.6);wall('2F multimedia east',6.2,5.4,-4.3,.22,3.6,13.8,3.6);wall('2F multimedia east south',6.2,5.4,5.7,.22,3.6,2.2,3.6);
+  wall('2F D wing south',-7.95,5.4,6.8,4.1,3.6,.28,3.6);wall('2F D wing west',-10,5.4,4.3,.22,3.6,5,3.6);wall('2F D wing partition',-5.9,5.4,2.2,.22,3.6,.8,3.6);wall('2F D wing partition south',-5.9,5.4,5.7,.22,3.6,2.2,3.6);
+  wall('2F multimedia wing south',8.1,5.4,6.8,3.8,3.6,.28,3.6);wall('2F multimedia wing east',10,5.4,4.3,.22,3.6,5,3.6);wall('2F multimedia wing partition',6.2,5.4,2.2,.22,3.6,.8,3.6);wall('2F multimedia wing partition south',6.2,5.4,5.7,.22,3.6,2.2,3.6);
+  // Stair body seals: block ground-level entry into the solid stair masses (legit crossings happen above these bands).
+  addColliderBounds(-7.9,-6.1,-9.12,-8.88,-.6,3.0); addColliderBounds(-9.9,-6.1,-3.72,-3.48,-.6,1.7); addColliderBounds(-9.9,-8.1,-5.32,-5.08,-.6,1.55);
+  addColliderBounds(6.3,8.05,-9.12,-8.88,-.6,3.0); addColliderBounds(6.3,9.95,-3.72,-3.48,-.6,1.7); addColliderBounds(8.25,9.95,-5.32,-5.08,-.6,1.55);
+  // Outer envelope and 2F roof.
+  wall('north exterior wall',0,3.6,-23,20,7.2,.35);
+  box('teaching roof',0,7.35,-8.1,20,.3,29.8,0xe4ddca);
+  // Class furnishings and bounded furniture colliders.
+  function deskSet(x,z,y=0,band=B1,name='desk'){box(name+' top',x,y+1.45,z,1.35,.16,.72,0xd59a55);for(const dx of [-.55,.55])for(const dz of [-.27,.27])box(name+' leg',x+dx,y+.72,z+dz,.1,1.35,.1,0x8f603a);box(name+' chair seat',x,y+.76,z+.82,.68,.14,.55,0x4d9ab0);box(name+' chair back',x,y+1.2,z+1.08,.68,.82,.1,0x4d9ab0);addColliderBounds(x-.72,x+.72,z-.4,z+1.15,band.y0,band.y1);}
+  // 主教室A 5x4座位。
+  for(const z of [-7.4,-4.9,-2.4,.1,2.6])for(const x of [-4.3,-1.4,1.5,4.4])deskSet(x,z);
+  // A/C 的三乘三课桌、板书、窗帘与静态吊扇。
+  for(const [label,x0,x1,floor,band] of [['A',2.4,10,0,B1],['C',2.4,10,3.6,B2]]){for(let row=0;row<3;row++)for(let col=0;col<3;col++)deskSet(x0+1.35+col*2.15,-21.1+row*2.05,floor,band,label+' classroom desk');box(label+' classroom blackboard',(x0+x1)/2,floor+2.65,-22.82,x1-x0-1.2,1.7,.12,0x176d4b);box(label+' curtain left',x0+.35,floor+2.1,-22.55,.12,3.8,1.1,0x7a9e7e);box(label+' curtain right',x1-.35,floor+2.1,-22.55,.12,3.8,1.1,0x7a9e7e);const fan=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,.12,10),mat(0x59636b));fan.name=label+' static ceiling fan';fan.position.set((x0+x1)/2,floor+5.75,-19);scene.add(fan);}
+  for(const [label,x0,x1,floor,band] of [['A',2.4,10,0,B1],['C',2.4,10,3.6,B2]]){box(label+' podium',(x0+x1)/2,floor+.6,-22,1.4,1.2,.8,0xc47a42);addColliderBounds((x0+x1)/2-.7,(x0+x1)/2+.7,-22.4,-21.6,band.y0,band.y1);}
+  box('blackboard',.15,3.25,-10.94,7.2,2.2,.14,0x176d4b);box('board frame top',.15,4.39,-10.82,7.5,.12,.2,0xd7a94f);box('board frame bottom',.15,2.11,-10.82,7.5,.12,.2,0xd7a94f);box('podium',0,.65,-9.2,2.1,1.3,1.1,0xc47a42);addColliderBounds(-1.05,1.05,-9.75,-8.65,B1.y0,B1.y1);
+  for(const [x,y,w] of [[-2,3.5,1.5],[.2,3.15,2.2],[2.4,3.65,1.2]])box('blackboard chalk trace',x,y,-10.84,w,.035,.025,0xd8e6d4);
+  for(const x of [-4.2,0,4.2]){box('class south window',x,2.8,6.58,1.8,1.15,.04,0x8fb2c9);box('class south curtain',x-1.05,2.8,6.52,.24,2.2,.12,0x7a9e7e);box('class south curtain',x+1.05,2.8,6.52,.24,2.2,.12,0x7a9e7e);}
+  // 2F blackboard and three tier media seating.
+  box('D blackboard',-2.65,6.85,-10.94,4.5,1.7,.14,0x176d4b);for(let row=0;row<4;row++)for(let col=0;col<2;col++)deskSet(-4.1+col*2.2,-7.3+row*3.1,3.6,B2,'D desk');
+  box('multimedia screen',3.4,6.65,-10.98,4.2,2.1,.12,0x222d3d);for(let tier=0;tier<3;tier++){const tz=-8.2+tier*2.3;box('media tier',3.4,3.75+tier*.28,tz,5.2,.3,1.35,0x9b9589);for(let col=0;col<4;col++){const x=1.25+col*1.43,z=-8.35+tier*2.3;box('media seat',x,4.18+tier*.28,z,.9,.34,.55,0x4d6a88);}}
+  for(let i=0;i<5;i++){const x=-9.55+i*.72;box('D wing bookshelf',x,5.15,5.9,.62,2.9,.45,0x8a6a48);addColliderBounds(x-.34,x+.34,5.65,6.15,B2.y0,B2.y1);}for(let i=0;i<18;i++)box('D bookshelf book',-9.55+(i%5)*.72,4.1+Math.floor(i/5)*.58,5.62,.4,.42,.16,[0x3f6fb5,0xc0533f,0x7a9e7e,0xd9a441][i%4]);
+  // North room interiors: workstation, meeting room, restrooms and hallway utility details.
+  for(const x of [-2.5,.3])for(const z of [-19.8,-17]){box('office workstation',x,.74,z,1.45,.12,.75,0xa8895e);box('office monitor',x,1.25,z-.28,.58,.6,.08,0x33404a);addColliderBounds(x-.8,x+.8,z-.45,z+.5,B1.y0,B1.y1);}
+  for(const x of [-3.1,1.6]){box('office filing cabinet',x,1.1,-21.2,.7,2.2,.7,0x7a8894);addColliderBounds(x-.4,x+.4,-21.6,-20.8,B1.y0,B1.y1);}for(const x of [-4.2,2]){const p=new THREE.Mesh(new THREE.SphereGeometry(.4),mat(0x4e8f3f));p.position.set(x,.9,-20);scene.add(p);}
+  box('faculty meeting table',-.7,4.42,-19,4,.12,1.3,0x8a6a48);addColliderBounds(-2.75,1.35,-19.7,-18.3,B2.y0,B2.y1);for(let i=0;i<8;i++){const x=-2.7+(i%4)*1.35,z=i<4?-20:-18;box('faculty meeting chair',x,4.05,z,.5,.75,.5,0x4d6a88);addColliderBounds(x-.3,x+.3,z-.3,z+.3,B2.y0,B2.y1);}box('faculty whiteboard',-.7,6.4,-22.75,3.8,1.5,.08,0xeef1ed);box('faculty projector screen',-.7,6.4,-15,3.8,1.5,.08,0x33404a);
+  function restroom(prefix,x0,x1,z0,floor,band){for(let i=0;i<3;i++){const x=x0+.65+i*.82;box(prefix+' stall partition',x,floor+1.1,z0+1.6,.08,2.2,2.6,0xe8e1d5);box(prefix+' toilet',x-.35,floor+.35,z0+1.4,.48,.7,.65,0xf4f2ed);addColliderBounds(x-.65,x-.05,z0+1.05,z0+1.8,band.y0,band.y1);}for(let i=0;i<2;i++){const x=x0+1+i*1.3;box(prefix+' sink',x,floor+.9,z0+5,.9,.18,.45,0xdde4e4);box(prefix+' mirror',x,floor+2,z0+5.3,.85,1,.06,0x8fb2c9);addColliderBounds(x-.5,x+.5,z0+4.7,z0+5.3,band.y0,band.y1);}if(prefix.includes('男卫'))for(let i=0;i<2;i++){const x=x0+1.15+i*.95;box(prefix+' urinal',x,floor+1,z0+7.3,.48,1,.28,0xe9eeee);addColliderBounds(x-.28,x+.28,z0+7.1,z0+7.5,band.y0,band.y1);}box(prefix+' mop basin',x1-.5,floor+.5,z0+7,.7,1,.7,0x9ba6a5);}
+  for(const [prefix,x0,x1] of [['1F男卫',-10,-6.9],['1F女卫',-6.9,-3.8],['2F男卫',-10,-6.9],['2F女卫',-6.9,-3.8]])restroom(prefix,x0,x1,-23,prefix.startsWith('2F')?3.6:0,prefix.startsWith('2F')?B2:B1);
+  for(const [floor,z,band] of [[0,-13,B1],[3.6,-13,B2]]){box('corridor culture board',-8.9,floor+2.2,z,.08,1.6,3.4,0x37474f);for(let i=0;i<4;i++)box('corridor poster',-8.82,floor+1.8+(i%2)*.7,z-.9+Math.floor(i/2)*1.8,.04,.55,.75,[0xe8833a,0x4d9ab0,0xd94f4f,0x7a9e7e][i]);box('corridor water dispenser',8.7,floor+.6,z,.55,1.2,.55,0x6ca9c7);addColliderBounds(8.4,9,-13.3,-12.7,band.y0,band.y1);const ex=new THREE.Mesh(new THREE.CylinderGeometry(.13,.13,.55),mat(0xd93a2e));ex.position.set(-8.75,floor+.28,-11.6);scene.add(ex);addColliderBounds(-8.93,-8.57,-11.78,-11.42,band.y0,band.y1);}
+  //大厅公共设施、展板、吊灯与整板天花。
+  box('ceiling',0,7,15,20,.25,16.2,0xf7f1dc);box('lobby light strip',0,5.55,15,12,.08,14,0xffe9b8);
+  for(const z of [9,15,21]){const lamp=new THREE.Mesh(new THREE.SphereGeometry(.22),new THREE.MeshLambertMaterial({color:0xfff3cf,emissive:0xffca7a,emissiveIntensity:.95}));lamp.position.set(0,5.5,z);scene.add(lamp);}
+  box('lobby notice board',9.8,2,13.5,.08,2,4,0x37474f);for(let i=0;i<4;i++)box('lobby poster',9.72,1.5+(i%2)*.9,12.6+Math.floor(i/2)*1.8,.04,.65,.85,[0xe8833a,0x4d9ab0,0xd94f4f,0x7a9e7e][i]);box('lobby culture board',-9.8,2,16,.08,2,4,0x5a4632);for(let i=0;i<4;i++)box('lobby poster',-9.72,1.5+(i%2)*.9,15.1+Math.floor(i/2)*1.8,.04,.65,.85,[0x9a6fc0,0xd9a441,0x3f6fb5,0xc0533f][i]);
+  for(const [x,z] of [[8.2,16],[-8.2,17]]){box('lobby bench seat',x,.55,z,.55,.12,2.2,0x9a6a42);box('lobby bench back',x+(x>0?.32:-.32),.88,z,.1,.5,2.2,0x9a6a42);addColliderBounds(x-.4,x+.4,z-1.1,z+1.1,B1.y0,B1.y1);}
+  for(const [x,z] of [[-9,10],[9,10],[-9,21],[9,21]]){box('lobby planter',x,.25,z,.7,.5,.7,0x6d4c33);addColliderBounds(x-.4,x+.4,z-.4,z+.4,B1.y0,B1.y1);const shrub=new THREE.Mesh(new THREE.SphereGeometry(.5),mat(0x4e8f3f));shrub.position.set(x,.95,z);scene.add(shrub);}
+  addSign('教学楼大厅',3.4,.8,'#3d5a73','#ffffff',0,4.35,22.78,Math.PI);addSign('楼层导览 · 1F 大厅 / 2F 教室',3,.65,'#3d5a73','#ffffff',9.72,2.6,19.6,-Math.PI/2);
   // 校园外围、教学楼立面与远景。
   box('campus grass floor', 5, -.3, 72.5, 200, .24, 105, 0x77b25a);
   for (const [name, x, z, sx, sz] of [['campus wall south west', -60.5, 23, 69, .4], ['campus wall south east', 65.5, 23, 79, .4], ['campus wall west', -95, 74, .4, 102], ['campus wall north west', -51, 125, 88, .4], ['campus wall north east', 56, 125, 98, .4], ['campus wall east', 105, 74, .4, 102]]) box(name, x, 1.1, z, sx, 2.2, sz, 0xa8a29a, true);
@@ -373,9 +392,9 @@
   for(const [x,label] of [[64.5,'102'],[70.5,'103'],[76.5,'104'],[82.5,'105']]) { box('dorm2 fake door',x,1.3,107.8,1.6,2.6,.08,0x8e5638); const d=makeSign(label,.8,.45,'#37474f','#ffffff');d.position.set(x,2.3,107.72);d.rotation.y=Math.PI;scene.add(d); }
   for(const [x,label] of [[91.5,'102'],[96,'103'],[100.5,'104']]) { box('dorm3 fake door',x,1.3,107.8,1.6,2.6,.08,0x8e5638); const d=makeSign(label,.8,.45,'#37474f','#ffffff');d.position.set(x,2.3,107.72);d.rotation.y=Math.PI;scene.add(d); }
   dormShell('dorm2',73,102,26,73,[63,66,69,77,80,83]);dormShell('dorm3',96,102,16,96,[90.5,93,99.5,102]);
-  const fakeDoors = [{x:47,z:107.8},{x:51,z:107.8},{x:64.5,z:107.8},{x:70.5,z:107.8},{x:76.5,z:107.8},{x:82.5,z:107.8},{x:91.5,z:107.8},{x:96,z:107.8},{x:100.5,z:107.8}];
+  const fakeDoors = [{x:-8,z:6.55,floor:0,msg:'储物间锁着'},{x:9.65,z:-10.1,floor:3.6,msg:'天台门锁着'},{x:47,z:107.8},{x:51,z:107.8},{x:64.5,z:107.8},{x:70.5,z:107.8},{x:76.5,z:107.8},{x:82.5,z:107.8},{x:91.5,z:107.8},{x:96,z:107.8},{x:100.5,z:107.8}];
   const FAKE_DOOR_RADIUS = 2.0;
-  function nearFakeDoor() { for (const d of fakeDoors) if (Math.hypot(camera.position.x - d.x, camera.position.z - d.z) < FAKE_DOOR_RADIUS) return d; return null; }
+  function nearFakeDoor() { for (const d of fakeDoors) if (Math.abs(playerGroundY-(d.floor||0))<1.9 && Math.hypot(camera.position.x - d.x, camera.position.z - d.z) < FAKE_DOOR_RADIUS) return d; return null; }
 
   // 体育馆与室内球场。
   const gymWall=0xc7d3da;
@@ -435,28 +454,28 @@
   const teacherHead = new THREE.Mesh(new THREE.SphereGeometry(.24, 16, 12), mat(0xd6a982)); teacherHead.position.set(0, 2.02, 0); teacher.group.add(teacherHead);
   const teacherHair = new THREE.Mesh(new THREE.SphereGeometry(.245, 16, 8, 0, Math.PI * 2, 0, Math.PI * .48), mat(0x9b9da0)); teacherHair.position.set(0, 2.09, 0); teacher.group.add(teacherHair);
   for (const x of [-.18, .18]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(.2, .7, .24), mat(0x202b35)); leg.position.set(x, .48, 0); teacher.group.add(leg); }
-  teacher.group.position.set(0, 0, -5.3); scene.add(teacher.group);
-  const teacherWaypoints = [[0,-5.3],[0,7.6],[0,10.6],[5.5,16],[-5.5,16],[0,10.6],[0,7.6],[0,-7.6],[0,-10.6],[0,-16],[0,-10.6],[0,-7.6]];
+  teacher.group.position.set(0, 0, -9.4); scene.add(teacher.group);
+  const teacherWaypoints = [[0,-9.4],[0,5.2],[0,8.0],[4,11.5],[-4,11.5],[0,8.0],[0,5.2],[0,-10.0],[0,-12.9],[0,-10.0],[0,-9.4]];
   const counselor = { id:'zhou_counselor', group:new THREE.Group(), facing:0, waypoint:0, lastLines:{}, area:'front', periodKey:'' };
   const cBody = new THREE.Mesh(new THREE.BoxGeometry(.62,1.05,.34),mat(0xdfe8ee)); cBody.position.y=1.28; counselor.group.add(cBody);
   const cHead = new THREE.Mesh(new THREE.SphereGeometry(.24,16,12),mat(0xd6a982)); cHead.position.y=2.02; counselor.group.add(cHead);
   const cHair = new THREE.Mesh(new THREE.BoxGeometry(.18,.42,.2),mat(0x382c2b)); cHair.position.set(0,1.95,-.24); counselor.group.add(cHair);
   for(const x of [-.18,.18]) { const leg=new THREE.Mesh(new THREE.BoxGeometry(.2,.7,.24),mat(0x2e3440)); leg.position.set(x,.48,0); counselor.group.add(leg); }
-  counselor.group.position.set(0,0,-10.6); scene.add(counselor.group);
+  counselor.group.position.set(0,0,-12.3); scene.add(counselor.group);
   // 周老师分别巡逻两段走廊；拐点仍在前/后走廊内，不穿越教室。
-  const counselorWaypoints=[[0,-10.6],[-7,-10.6],[-7,-21],[7,-21],[7,-10.6],[0,-10.6]];
-  const counselorBackWaypoints=[[0,10.6],[7,10.6],[7,19],[-7,19],[-7,10.6],[0,10.6]];
+  const counselorWaypoints=[[0,-12.3],[-8.6,-12.3],[-8.6,-13.5],[8.6,-13.5],[8.6,-12.3],[0,-12.3]];
+  const counselorBackWaypoints=[[0,-13.5],[8.6,-13.5],[8.6,-12.3],[-8.6,-12.3],[-8.6,-13.5],[0,-13.5]];
   const admin = { id:'admin',group:new THREE.Group(),lastLines:{} };
   const aBody=new THREE.Mesh(new THREE.BoxGeometry(.72,1.3,.42),mat(0x1d1a2e)); aBody.position.y=1.15; admin.group.add(aBody);
   const aHead=new THREE.Mesh(new THREE.SphereGeometry(.24,16,12),mat(0x171522)); aHead.position.y=2.03; admin.group.add(aHead);
   const hood=new THREE.Mesh(new THREE.BoxGeometry(.62,.38,.58),mat(0x29243b)); hood.position.set(0,2.2,0); admin.group.add(hood);
-  admin.group.position.set(-8.2,0,-21.8); admin.group.rotation.y=Math.PI/2; scene.add(admin.group);
+  admin.group.position.set(8.9,0,-12.9); admin.group.rotation.y=-Math.PI/2; scene.add(admin.group);
   for (const group of [teacher.group, counselor.group, admin.group]) group.traverse(o => { if (o.isMesh && o.material && o.material.isMeshLambertMaterial) { o.material = o.material.clone(); o.material.emissive = o.material.color.clone().multiplyScalar(0.22); } });
   // 门未解锁时以暗色裂缝占位，触发靠近提示。
-  const portal = new THREE.Group(); portal.position.set(-9.72,1.7,15); portal.rotation.y=Math.PI/2; scene.add(portal);
+  const portal = new THREE.Group(); portal.position.set(-8.3,1.7,-11.02); portal.rotation.y=Math.PI; scene.add(portal);
   const portalFrame=new THREE.Mesh(new THREE.BoxGeometry(1.7,3.3,.2),new THREE.MeshBasicMaterial({color:0x8a6cff})); portal.add(portalFrame);
   const portalFace=new THREE.Mesh(new THREE.PlaneGeometry(1.35,2.95),new THREE.MeshBasicMaterial({color:0x8a6cff,transparent:true,opacity:.38,side:THREE.DoubleSide})); portalFace.position.z=.12; portal.add(portalFace);
-  const crack=new THREE.Mesh(new THREE.BoxGeometry(1.3,2.8,.08),mat(0x343243)); crack.position.copy(portal.position); crack.position.x=-9.83; crack.rotation.y=Math.PI/2; scene.add(crack);
+  const crack=new THREE.Mesh(new THREE.BoxGeometry(1.3,2.8,.08),mat(0x343243)); crack.position.copy(portal.position); crack.position.set(-8.3,1.7,-11.33); crack.rotation.y=Math.PI; scene.add(crack);
   const strange = new THREE.Group(); scene.add(strange);
   const strangeMat=color=>new THREE.MeshLambertMaterial({color,emissive:color,emissiveIntensity:.22});
   const spBox=(x,y,z,sx,sy,sz,color)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),strangeMat(color));m.position.set(x,y,z);strange.add(m);return m;};
@@ -475,7 +494,7 @@
   // 行政楼
   const aw=0xcfc8ba;
   box('admin west wall south',28,7.5,32.35,.35,15,8.7,aw,true);box('admin west wall north',28,7.5,42.15,.35,15,5.7,aw,true);box('admin entrance lintel',28,9,38,.35,12,2.6,aw);box('admin east wall',50,7.5,36.5,.35,15,17,aw,true);box('admin north wall',39,7.5,28,22,15,.35,aw,true);box('admin south wall',39,7.5,45,22,15,.35,aw,true);box('admin office ceiling',39,15.1,36.5,22.5,.25,17.5,0xbdb5a4);
-  for(const y of [3.4,6.6,9.8,13])for(const x of [32,36,42,46])box('admin window',x,y,45.22,1.6,1.4,.08,0x5a6a76);doors.push(makeDoor('行政楼门',28,36.7,1,'x'));addedSign('行政楼',3.4,1,'#5c5340','#ffffff',27.4,4.6,38,-Math.PI/2);box('admin path floor',23,-.25,38,10,.25,3.5,0xe6dcc2);box('admin interior floor',39,-.24,36.5,21,.25,16,0xd9d2c2);
+  for(const y of [3.4,5.4,9.8,13])for(const x of [32,36,42,46])box('admin window',x,y,45.22,1.6,1.4,.08,0x5a6a76);doors.push(makeDoor('行政楼门',28,36.7,1,'x'));addedSign('行政楼',3.4,1,'#5c5340','#ffffff',27.4,4.6,38,-Math.PI/2);box('admin path floor',23,-.25,38,10,.25,3.5,0xe6dcc2);box('admin interior floor',39,-.24,36.5,21,.25,16,0xd9d2c2);
   box('admin reception desk',31.5,.45,38,.8,.9,3.2,0x8a6a48,true);for(const x of [36,39.5,43,46.5]){box('admin workstation',x,.75,41,1.5,.7,.7,0xa8895e,true);addChair(x,39.8);box('admin computer',x,1.05,40.76,.5,.35,.06,0x33404a);}
   box('admin work area divider',39,.6,39.2,13,1.2,.18,0xb8b0a0,true);box('counselor partition north',44,1.5,33,.22,3,5,0xe2dccb,true);box('counselor partition south',44,1.5,40.5,.22,3,5,0xe2dccb,true);box('counselor desk',47.5,.75,30.5,.8,.75,1.8,0x8a6a48,true);addChair(47.5,32.2);box('counselor filing cabinet',49.4,1,36,.6,2,1.2,0x7a8894,true);addedSign('辅导员办公室',1.9,.8,'#37474f','#ffffff',43.85,2.1,36.3,-Math.PI/2);
   box('meeting partition north',36,1.5,33,.22,3,5,0xe2dccb,true);box('meeting partition south',36,1.5,40.5,.22,3,5,0xe2dccb,true);box('admin meeting table',32,.72,30.5,1.4,.75,3.6,0x6e5638,true);for(const [x,z] of [[30.8,29],[33.2,29],[30.8,32],[33.2,32],[32,28.5],[32,32.5]])addChair(x,z,0x657d91);interiorLight(0xfff1d6,24,30,39,3.4,36);
@@ -538,7 +557,7 @@
   box('service south lintel', 39, 3.6, 70, 26, 1.2, .35, 0xb59a78); box('service roof', 39, 4.35, 74, 26.5, .3, 8.5, 0x9a8266); box('service interior floor', 39, -.24, 74, 25, .25, 7, 0xd9cbb2);
   for(const x of [29.7,33.4,37.1,40.8,44.5,48.2]) box('service shop partition', x, 1.5, 74, .2, 3, 8, 0xb59a78, true);
   // 浴室
-  for(const x of [26.6,27.8,29]) { box('bathroom stall divider', x, 1.1, 76.3, .08, 1.6, 1.1, 0x9db8c4); box('bathroom toilet', x-.45, .4, 76.3, .4, .4, .5, 0xf2f2f2, true); box('bathroom shower control', x-.45, 1.9, 74.8, .12, .12, .06, 0xc0ccd4); }
+  for(const x of [25.4,27.8,29]) { box('bathroom stall divider', x, 1.1, 76.3, .08, 1.6, 1.1, 0x9db8c4); box('bathroom toilet', x-.45, .4, 76.3, .4, .4, .5, 0xf2f2f2, true); box('bathroom shower control', x-.45, 1.9, 74.8, .12, .12, .06, 0xc0ccd4); }
   // 开水房
   box('boiling water counter', 31.55, .85, 76.7, 2.8, .85, .6, 0x9aa3ab, true); for(const x of [30.6,31.2,31.8,32.4]) box('water tap', x, 1.38, 76.45, .09, .25, .09, 0x5a6a76);
   box('water heater', 32.9, .8, 72, .8, 1.6, .5, 0xd95f29, true);
@@ -560,7 +579,7 @@
 
   // 后勤服务中心，西侧开门
   const lw=0x9aa88f;
-  box('logistics east south wall',-84,3,115.3,.35,6,6.6,lw,true); box('logistics east north wall',-84,3,122.3,.35,6,3.4,lw,true); box('logistics entrance lintel',-84,4.8,119.9,.35,2.4,2.6,lw);
+  box('logistics east south wall',-84,3,115.3,.35,6,5.4,lw,true); box('logistics east north wall',-84,3,122.3,.35,6,3.4,lw,true); box('logistics entrance lintel',-84,4.8,119.9,.35,2.4,2.6,lw);
   box('logistics west wall',-98,3,118,.35,6,12,lw,true); box('logistics south wall',-91,3,112,14,6,.35,lw,true); box('logistics north wall',-91,3,124,14,6,.35,lw,true); box('logistics ceiling',-91,6.1,118,14.5,.25,12.5,0x87937c);
   doors.push(makeDoor('后勤门',-84,118.6,1,'x')); addedSign('后勤服务中心',3.2,.9,'#42563c','#ffffff',-83.4,4.2,119.9,Math.PI/2);
   box('logistics path floor',-80,-.25,119.9,8,.25,3,0xe0d3ae); box('logistics interior floor',-91,-.24,118,13,.25,11,0xc9cfc0);
@@ -661,7 +680,7 @@
     } catch(error) { console.info('NPC API 不可用，使用预置台词。',error); }
     return npcFallbackLine(npc,sceneName);
   }
-  function areaOf(z) { return z > 9 ? 'back' : z < -9 ? 'front' : 'room'; }
+  function areaOf(x, z) { if (z < -11.2) return 'front'; if (z > 6.8) return 'back'; if (x >= -5.9 && x <= 6.2) return 'room'; if (x > 6.2 && z >= 1.8) return 'back'; return 'stair'; }
   function doorBounds(door) {
     if (door.axis === 'x') {
       const points = [0, door.width].map(d => { const a = door.pivot.rotation.y; const lz = door.direction * d; return { x: door.plane + lz * Math.sin(a), z: door.hinge + lz * Math.cos(a) }; });
@@ -718,13 +737,14 @@
     gameState.mysteryQuestData.holdingItem=data.mysteryQuestData.holdingItem;
     gameState.strangeSpaceData={...data.strangeSpaceData}; gameState.lastBasketballCreditDay=data.lastBasketballCreditDay;
     gameState.alert=0;gameState.inStrangeSpace=false;gameState.strangeTimeLeft=0;gameState.strangeItem=null;relic.visible=false;
-    teacher.group.position.set(0,0,-5.3);teacher.waypoint=0;teacher.returnStep=0;teacher.facing=0;teacher.group.rotation.y=0;
+    teacher.group.position.set(0,0,-9.4);teacher.waypoint=0;teacher.returnStep=0;teacher.facing=0;teacher.group.rotation.y=0;
     camera.position.set(0,1.6,5);yaw=0;pitch=0;camera.rotation.set(0,0,0,'YXZ');
     gameStarted=true;saveEnabled=true;updateHUD();renderer.domElement.requestPointerLock();
   }
   const prompt = document.getElementById('prompt');
   const stats = document.getElementById('stats'), skipBadge = document.getElementById('skipBadge');
   const alertBar = document.getElementById('alertBar'), alertFill = document.getElementById('alertFill');
+  const floorBadge=document.getElementById('floorBadge');
   const suspicionRow=document.getElementById('suspicionRow'), suspicionBar=document.getElementById('suspicionBar'), suspicionFill=document.getElementById('suspicionFill'), questRow=document.getElementById('questRow');
   const dialog = document.getElementById('dialog'), dialogText = document.getElementById('dialogText'), dialogName=document.getElementById('dialogName'), dialogPortrait=document.getElementById('dialogPortrait'), chatBox=document.getElementById('chatBox'), chatMeta=document.getElementById('chatMeta'), chatInput=document.getElementById('chatInput'), chatSend=document.getElementById('chatSend');
   let currentChat=null;
@@ -779,13 +799,14 @@
   function onCreditsFull() { if (gameState.finished) return; if (gameState.credits < gameState.maxCredits) return; if (!escapeToastShown) { escapeToastShown = true; showToast('学分已满，去校门离开校园！'); } updateHUD(); }
   function updateHUD() {
     const period = gameState.schedule[gameState.periodIndex];
+    floorBadge.textContent = playerGroundY <= .05 ? '1F' : playerGroundY >= FLOOR_H-.05 ? '2F' : '楼梯中';
     stats.textContent = `第 ${gameState.day} 天 · ${period ? period.name : '学期结束'}${period && period.course ? `（${period.course}）` : ''} 剩余 ${Math.ceil(gameState.periodTimeLeft)}s ｜ 学分 ${gameState.credits}/${gameState.maxCredits} ｜ 被抓 ${gameState.caught}/${gameState.caughtMax}`;
     skipBadge.style.display = gameState.skipping ? 'block' : 'none';
     alertBar.style.display = gameState.alert > 0 ? 'block' : 'none';
     alertFill.style.width = `${gameState.alert}%`; alertFill.style.background = `hsl(${48 - gameState.alert * .48}, 95%, 52%)`;
     suspicionRow.style.display=suspicionBar.style.display=gameState.suspicion>0?'block':'none'; suspicionFill.style.width=`${gameState.suspicion}%`;
     const q=gameState.mysteryQuestData.quests.find(item=>item.status==='active'||item.status==='hasItem');
-    questRow.style.display=q?'block':'none'; if(q) questRow.textContent=q.status==='hasItem'?`神秘任务：把『${q.itemName}』交给前走廊尽头的神秘人`:`神秘任务：取回『${q.itemName}』（去后走廊的奇异空间）`;
+    questRow.style.display=q?'block':'none'; if(q) questRow.textContent=q.status==='hasItem'?`神秘任务：把『${q.itemName}』交给主走廊东端的神秘人`:`神秘任务：取回『${q.itemName}』（去主走廊西端的奇异空间）`;
     if(gameState.inStrangeSpace) questRow.style.display='block',questRow.textContent=`奇异空间剩余 ${Math.ceil(gameState.strangeTimeLeft)} 秒`;
     escapeHint.style.display = (gameState.credits >= gameState.maxCredits && !gameState.finished) ? 'block' : 'none';
     if (gameState.credits < gameState.maxCredits) escapeToastShown = false;
@@ -815,7 +836,7 @@
     if (period && period.type === 'class') {
       gameState.sessionFlag = { rollCalled:true, skipRecorded:false };
       const x = camera.position.x, z = camera.position.z;
-      if (x >= -8.2 && x <= 8.2 && z >= -5.2 && z <= 7.6) {
+      if (x >= -5.5 && x <= 5.8 && z >= -10.8 && z <= 6.4 && playerGroundY < 1) {
         gameState.credits += CONFIG.attendanceCredits; gameState.todayAttended++; gameState.todayCredits += CONFIG.attendanceCredits;
         addNpcMemory('yan_teacher','ATTENDED_CLASS',`第${gameState.day}天${period.course}到课`);
         showToast('点名成功 +2 学分');
@@ -871,11 +892,11 @@
     showPanel('管理员',await npcSpeak(admin,'SMALL_TALK','',{flavorOnly:true}),'继续',()=>{summary.classList.remove('visible');gameState.panelOpen=false;renderer.domElement.requestPointerLock();});
   }
   function enterStrangeSpace(){addNpcMemory('admin','ENTERED_STRANGE_SPACE','进入了奇异空间',{skipDelta:true});gameState.inStrangeSpace=true;gameState.strangeSpaceData.enteredToday=true;gameState.strangeSpaceData.lastEnterDay=gameState.day;gameState.strangeTimeLeft=CONFIG.strangeTimeLimit;camera.position.set(120,1.6,7);yaw=0;pitch=0;camera.rotation.set(0,0,0,'YXZ');const q=activeQuest(),spots=[[116, -4],[124,1],[120,-6]],spot=spots[Math.floor(Math.random()*spots.length)];gameState.strangeItem=q&&q.status==='active'?q:null;relic.position.set(spot[0],1.6,spot[1]);relic.visible=true;scene.fog.color.setHex(STRANGE_FOG_COLOR);updateHUD();}
-  function leaveStrangeSpace(){gameState.inStrangeSpace=false;relic.visible=false;camera.position.set(-8.3,1.6,13.7);scene.fog.color.setHex(NORMAL_FOG_COLOR);updateHUD();}
+  function leaveStrangeSpace(){gameState.inStrangeSpace=false;relic.visible=false;camera.position.set(-8.3,1.6,-12.9);scene.fog.color.setHex(NORMAL_FOG_COLOR);updateHUD();}
   function updateStrangeSpace(dt){
     for(const d of strangeDesks)d.mesh.position.y=d.y+Math.sin(performance.now()/700+d.phase)*.18;
     const pulse=.65+Math.sin(performance.now()/450)*.25;portalFrame.material.opacity=1;portalFace.material.opacity=pulse;
-    const p=gameState.strangeSpaceData, dist=Math.hypot(camera.position.x+9.7,camera.position.z-15), period=gameState.schedule[gameState.periodIndex];
+    const p=gameState.strangeSpaceData, dist=Math.hypot(camera.position.x+8.3,camera.position.z+11.02), period=gameState.schedule[gameState.periodIndex];
     for(const q of gameState.mysteryQuestData.quests)if(q.status==='locked'&&gameState.day>=q.day&&(!gameState.mysteryQuestData.quests.slice(0,gameState.mysteryQuestData.quests.indexOf(q)).some(prev=>prev.status!=='done')))q.status='available';
     const unlocked=gameState.day>=CONFIG.strangeUnlockDay;crack.visible=!unlocked;portal.visible=unlocked;
     const adminVisible=gameState.day>=4&&period&&['break','lunch'].includes(period.type);admin.group.visible=!!adminVisible;
@@ -885,8 +906,8 @@
       if(gameState.strangeTimeLeft<=0)leaveStrangeSpace();
       return;
     }
-    const adminNear=adminVisible&&Math.hypot(camera.position.x-admin.group.position.x,camera.position.z-admin.group.position.z)<=CONFIG.talkDistance;
-    const portalNear=dist<2.6;const hoopDist=Math.hypot(camera.position.x-HOOP_POS.x,camera.position.z-HOOP_POS.z);
+    const adminNear=playerGroundY<1&&adminVisible&&Math.hypot(camera.position.x-admin.group.position.x,camera.position.z-admin.group.position.z)<=CONFIG.talkDistance;
+    const portalNear=playerGroundY<1&&dist<2.6;const hoopDist=Math.hypot(camera.position.x-HOOP_POS.x,camera.position.z-HOOP_POS.z);
     if(portalNear) {prompt.style.display='block';prompt.textContent=!unlocked?'这扇门还没有出现。':p.enteredToday?'今天的裂隙已经闭合，明天再来吧。':'按 F 进入奇异空间';}
     else if(adminNear){prompt.style.display='block';prompt.textContent='按 F 和神秘人交谈';}
     else if(!gameState.panelOpen&&hoopDist>=HOOP_TRIGGER_RADIUS&&Math.hypot(camera.position.x-teacher.group.position.x,camera.position.z-teacher.group.position.z)>CONFIG.talkDistance&&Math.hypot(camera.position.x-counselor.group.position.x,camera.position.z-counselor.group.position.z)>CONFIG.talkDistance&&!nearbyDoor&&!nearFakeDoor()&&!nearBed())prompt.style.display='none';
@@ -895,9 +916,10 @@
     return playerVisibleTo(teacher,CONFIG.teacherViewDistance,CONFIG.teacherViewHalfAngle);
   }
   function playerVisibleTo(npc,distance,halfAngle) {
+    if (playerGroundY > 1) return false;
     const tx = npc.group.position.x, tz = npc.group.position.z;
     const dx = camera.position.x - tx, dz = camera.position.z - tz;
-    if (areaOf(tz) !== areaOf(camera.position.z) || Math.hypot(dx, dz) > distance) return false;
+    if (areaOf(tx, tz) !== areaOf(camera.position.x, camera.position.z) || Math.hypot(dx, dz) > distance) return false;
     const toward = Math.atan2(dx, dz), delta = Math.atan2(Math.sin(toward - npc.facing), Math.cos(toward - npc.facing));
     return Math.abs(delta) <= halfAngle * Math.PI / 180;
   }
@@ -910,10 +932,10 @@
         target = teacherWaypoints[teacher.waypoint];
         const dx = target[0] - teacher.group.position.x, dz = target[1] - teacher.group.position.z, distance = Math.hypot(dx, dz);
         if (distance < .15) { teacher.waypoint = (teacher.waypoint + 1) % teacherWaypoints.length; target = teacherWaypoints[teacher.waypoint]; }
-      } else { teacher.waypoint = 0; if(Math.hypot(teacher.group.position.x,teacher.group.position.z+5.3)<.2)teacher.returnStep=1; target=teacher.returnStep===0?[2.6,-5.3]:[0,-5.3]; }
+      } else { teacher.waypoint = 0; if(Math.hypot(teacher.group.position.x,teacher.group.position.z+9.4)<.2)teacher.returnStep=1; target=teacher.returnStep===0?[2.6,-9.4]:[0,-9.4]; }
       let dx = target[0] - teacher.group.position.x, dz = target[1] - teacher.group.position.z, distance = Math.hypot(dx, dz);
       if(period&&period.type==='class')teacher.returnStep=0;
-      else if(distance<.15&&teacher.returnStep===0){teacher.returnStep=1;target=[0,-5.3];dx=target[0]-teacher.group.position.x;dz=target[1]-teacher.group.position.z;distance=Math.hypot(dx,dz);}
+      else if(distance<.15&&teacher.returnStep===0){teacher.returnStep=1;target=[0,-9.4];dx=target[0]-teacher.group.position.x;dz=target[1]-teacher.group.position.z;distance=Math.hypot(dx,dz);}
       if (distance > .001) {
         const step = Math.min(distance, CONFIG.teacherSpeed * dt), dirX = dx / distance, dirZ = dz / distance;
         teacher.group.position.x += dirX * step; teacher.group.position.z += dirZ * step;
@@ -928,18 +950,18 @@
       gameState.alert = Math.max(0, Math.min(100, gameState.alert));
       if (gameState.alert >= 100) catchPlayer();
       const cseen=period&&period.type==='class'&&gameState.skipping&&counselor.group.visible&&playerVisibleTo(counselor,CONFIG.suspicionViewDistance,CONFIG.suspicionViewHalfAngle);
-      gameState.suspicion=Math.max(0,Math.min(100,gameState.suspicion+(cseen?100/CONFIG.suspicionRiseSeconds:-1*(areaOf(camera.position.z)==='room'?CONFIG.suspicionDecayInClassPerSec:CONFIG.suspicionDecayPerSec))*dt));
+      gameState.suspicion=Math.max(0,Math.min(100,gameState.suspicion+(cseen?100/CONFIG.suspicionRiseSeconds:-1*(areaOf(camera.position.x, camera.position.z)==='room'?CONFIG.suspicionDecayInClassPerSec:CONFIG.suspicionDecayPerSec))*dt));
       if(gameState.suspicion>=100)talkWithCounselor();
     }
-    const canTalk = active && Math.hypot(camera.position.x - teacher.group.position.x, camera.position.z - teacher.group.position.z) <= CONFIG.talkDistance;
-    const canTalkCounselor=active&&counselor.group.visible&&Math.hypot(camera.position.x-counselor.group.position.x,camera.position.z-counselor.group.position.z)<=CONFIG.talkDistance;
+    const canTalk = active && playerGroundY<1 && Math.hypot(camera.position.x - teacher.group.position.x, camera.position.z - teacher.group.position.z) <= CONFIG.talkDistance;
+    const canTalkCounselor=active&&playerGroundY<1&&counselor.group.visible&&Math.hypot(camera.position.x-counselor.group.position.x,camera.position.z-counselor.group.position.z)<=CONFIG.talkDistance;
     const doorPrompt = nearbyDoor && document.pointerLockElement === renderer.domElement;
     const hoopNearby = Math.hypot(camera.position.x - HOOP_POS.x, camera.position.z - HOOP_POS.z) < HOOP_TRIGGER_RADIUS;
     const hoopPrompt = active && hoopNearby && period && ['break', 'lunch', 'class', 'evening'].includes(period.type);
     const fakeNear = !!nearFakeDoor();
     const bedNear = nearBed();
-    const adminNear=admin.group.visible&&Math.hypot(camera.position.x-admin.group.position.x,camera.position.z-admin.group.position.z)<=CONFIG.talkDistance;
-    const portalNear=Math.hypot(camera.position.x+9.7,camera.position.z-15)<2.6;
+    const adminNear=playerGroundY<1&&admin.group.visible&&Math.hypot(camera.position.x-admin.group.position.x,camera.position.z-admin.group.position.z)<=CONFIG.talkDistance;
+    const portalNear=playerGroundY<1&&Math.hypot(camera.position.x+8.3,camera.position.z+11.02)<2.6;
     prompt.style.display = doorPrompt || fakeNear || bedNear || hoopPrompt || canTalk || canTalkCounselor || adminNear || portalNear ? 'block' : 'none';
     if (doorPrompt) prompt.textContent = '按 E ' + (nearbyDoor.open ? '关门' : '开门');
     else if (fakeNear) prompt.textContent = '按 F 敲门';
@@ -984,7 +1006,7 @@
     const period = gameState.schedule[gameState.periodIndex];
     if (!period) return;
     if (period.type === 'class') {
-      const outside = Math.abs(camera.position.x) >= 9.8 || Math.abs(camera.position.z) >= 8.8;
+      const outside = !(camera.position.x > -5.7 && camera.position.x < 6.0 && camera.position.z > -11.0 && camera.position.z < 6.6) || playerGroundY >= 1;
       gameState.skipping = outside;
       if (outside && gameState.sessionFlag.rollCalled && !gameState.sessionFlag.skipRecorded) { gameState.todaySkipped++; gameState.sessionFlag.skipRecorded = true; }
     } else gameState.skipping = false;
@@ -1013,15 +1035,15 @@
     if (e.code === 'KeyE' && document.pointerLockElement === renderer.domElement && nearbyDoor) {
       nearbyDoor.open = !nearbyDoor.open;
       nearbyDoor.passable=false;
-    } else if (e.code === 'KeyE' && document.pointerLockElement === renderer.domElement && nearFakeDoor()) showToast('不是你的宿舍');
+    } else if (e.code === 'KeyE' && document.pointerLockElement === renderer.domElement && nearFakeDoor()) { const fd=nearFakeDoor(); showToast(fd.msg || '不是你的宿舍'); }
     if (e.code === 'KeyF' && document.pointerLockElement === renderer.domElement) {
       if(gameState.inStrangeSpace){if(Math.hypot(camera.position.x-120,camera.position.z-5)<1.6)leaveStrangeSpace();return;}
       const fd = nearFakeDoor();
       const hoopDistance = Math.hypot(camera.position.x - HOOP_POS.x, camera.position.z - HOOP_POS.z);
       const period = gameState.schedule[gameState.periodIndex];
-      const portalNear=Math.hypot(camera.position.x+9.7,camera.position.z-15)<2.6;
+      const portalNear=playerGroundY<1&&Math.hypot(camera.position.x+8.3,camera.position.z+11.02)<2.6;
       const adminNear=admin.group.visible&&Math.hypot(camera.position.x-admin.group.position.x,camera.position.z-admin.group.position.z)<=CONFIG.talkDistance;
-      if(fd)showToast('不是你的宿舍');
+      if(fd)showToast(fd.msg || '不是你的宿舍');
       else if (nearBed()) trySleep();
       else if(portalNear){if(gameState.day<CONFIG.strangeUnlockDay)showToast('这扇门还没有出现。');else if(gameState.strangeSpaceData.enteredToday)showToast('今天的裂隙已经闭合，明天再来吧。');else enterStrangeSpace();}
       else if(adminNear){const q=activeQuest(),available=nextAvailableQuest();if((q&&q.status==='hasItem')||available)adminInteract();else openChat(admin,'SMALL_TALK');}
@@ -1042,7 +1064,9 @@
   function overlaps(x, z, b) { return x + playerRadius > b.minX && x - playerRadius < b.maxX && z + playerRadius > b.minZ && z - playerRadius < b.maxZ; }
   function collides(x, z) {
     for (const c of colliders) {
+      if (c.y0 !== undefined && (playerGroundY < c.y0 || playerGroundY > c.y1)) continue;
       if (c.door) {
+        if (Math.abs(playerGroundY-c.door.floorY)>1.9) continue;
         if (!c.door.passable && overlaps(x, z, c.door.cachedBounds)) return true;
       } else {
         let b = c.bounds;
@@ -1080,7 +1104,7 @@
     updateDoors(dt);
     if (gameState.minigameOpen) { updateSchedule(dt); updateTeacher(dt); return; }
     if(gameState.chatOpen){if(currentChat&&Math.hypot(camera.position.x-currentChat.npc.group.position.x,camera.position.z-currentChat.npc.group.position.z)>CONFIG.talkDistance+1.5)closeChat();updateTeacher(dt);return;}
-    if(gameState.inStrangeSpace){updateStrangeSpace(dt);const s=4.6*dt;forward.set(-Math.sin(yaw),0,-Math.cos(yaw));right.set(Math.cos(yaw),0,-Math.sin(yaw));move.set(0,0,0);if(keys.has('KeyW'))move.add(forward);if(keys.has('KeyS'))move.sub(forward);if(keys.has('KeyD'))move.add(right);if(keys.has('KeyA'))move.sub(right);if(move.lengthSq()){move.normalize().multiplyScalar(s);camera.position.x+=move.x;camera.position.z+=move.z;}camera.position.x=Math.max(110.6,Math.min(129.4,camera.position.x));camera.position.z=Math.max(-8.4,Math.min(8.4,camera.position.z));updateHUD();return;}
+    if(gameState.inStrangeSpace){updateStrangeSpace(dt);if(!gameState.inStrangeSpace){updateHUD();return;}const s=4.6*dt;forward.set(-Math.sin(yaw),0,-Math.cos(yaw));right.set(Math.cos(yaw),0,-Math.sin(yaw));move.set(0,0,0);if(keys.has('KeyW'))move.add(forward);if(keys.has('KeyS'))move.sub(forward);if(keys.has('KeyD'))move.add(right);if(keys.has('KeyA'))move.sub(right);if(move.lengthSq()){move.normalize().multiplyScalar(s);camera.position.x+=move.x;camera.position.z+=move.z;}camera.position.x=Math.max(110.6,Math.min(129.4,camera.position.x));camera.position.z=Math.max(-8.4,Math.min(8.4,camera.position.z));updateHUD();return;}
     const speed = 4.6 * dt;
     const prevX = camera.position.x, prevZ = camera.position.z;
     if (collides(prevX, prevZ)) {
@@ -1113,8 +1137,10 @@
         if (!collides(camera.position.x, candidateZ)) camera.position.z = candidateZ;
       }
     }
+    if (!gameState.inStrangeSpace) { const g=groundHeightAt(camera.position.x,camera.position.z,camera.position.y-1.6); playerGroundY=g; camera.position.y=g+1.6; } else playerGroundY=0;
     nearbyDoor = null;
     for (const door of doors) {
+      if(Math.abs(playerGroundY-door.floorY)>1.9) continue;
       const cx = door.cx, cz = door.cz;
       if (Math.hypot(camera.position.x - cx, camera.position.z - cz) < 2.25) { nearbyDoor = door; break; }
     }
@@ -1183,7 +1209,7 @@
     for (const z of [102.22,123.78]) box('roof parapet',d.cx,19.1,z,d.width+.5,.55,.22,0xcbb693);
     for (const x of [d.left-.22,d.right+.22]) box('roof parapet',x,19.1,113,.22,.55,22.5,0xcbb693);
     roofAc(d.cx-4,18.95,112); roofAc(d.cx+4,18.95,115);
-    if (d.width-3>8) for (const y of [3.3,6.6,9.9,13.2,16.5]) {
+    if (d.width-3>8) for (const y of [3.3,5.4,9.9,13.2,16.5]) {
       box('dorm balcony slab',d.cx,y,124.55,d.width-3,.12,.8,0xcabfa8);
       box('dorm balcony rail',d.cx,y+1.02,124.92,d.width-3,.07,.07,0x8a8378);
     }
