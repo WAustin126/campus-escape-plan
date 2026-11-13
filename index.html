@@ -1,0 +1,1029 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>校园逃跑计划</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; font-family: system-ui, "Microsoft YaHei", sans-serif; }
+  canvas { display: block; }
+  #overlay { position: fixed; inset: 0; display: grid; place-content: center; gap: 12px; text-align: center; color: white; background: rgba(28, 51, 71, .78); z-index: 5; transition: opacity .2s; }
+  #overlay.prestart { background-image: linear-gradient(rgba(255,176,102,.30), rgba(59,42,23,.55)), url('assets/start-bg.jpg'); background-size: cover; background-position: center; }
+  #overlay.prestart h1, #overlay.prestart p { text-shadow: 0 2px 10px rgba(0,0,0,.6); }
+  #overlay h1 { margin: 0; font-size: clamp(32px, 6vw, 64px); letter-spacing: .08em; text-shadow: 0 4px 0 rgba(0,0,0,.15); }
+  #overlay p { margin: 0; font-size: 18px; opacity: .9; }
+  #startButtons { display:flex; justify-content:center; gap:12px; flex-wrap:wrap; }
+  #startButtons button { border:0; border-radius:8px; padding:12px 22px; font:700 18px system-ui; cursor:pointer; }
+  #overlay.hidden { opacity: 0; pointer-events: none; }
+  #hud { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); text-align: center; color: #fff; text-shadow: 0 2px 5px #243746; pointer-events: none; z-index: 2; }
+  #stats { font-weight: 700; font-size: 19px; }
+  #skipBadge { display:none; color:#ff4f4f; font-weight:900; font-size:20px; margin-top:4px; text-shadow:0 2px 5px #3a0000; }
+  #alertBar { display:none; width:220px; height:10px; margin:7px auto 0; border:1px solid rgba(255,255,255,.8); border-radius:8px; background:rgba(20,30,35,.6); overflow:hidden; }
+  #alertFill { width:0; height:100%; background:hsl(48, 95%, 52%); transition:width .08s linear; }
+  #suspicionRow,#questRow { margin-top:5px; font-size:14px; font-weight:700; }
+  #suspicionBar { display:none; width:220px; height:10px; margin:4px auto 0; border:1px solid rgba(255,255,255,.8); border-radius:8px; background:rgba(20,30,35,.6); overflow:hidden; }
+  #suspicionFill { width:0; height:100%; background:#c18cff; transition:width .08s linear; }
+  #toast { position:fixed; left:50%; top:42%; transform:translate(-50%,-50%); padding:12px 22px; border-radius:10px; color:#fff; background:rgba(25,90,65,.92); font-size:22px; font-weight:800; opacity:0; transition:opacity .22s; pointer-events:none; z-index:8; }
+  #toast.visible { opacity:1; }
+  #summary { position:fixed; inset:0; display:none; place-content:center; gap:14px; text-align:center; color:#fff; background:rgba(28,51,71,.84); z-index:7; }
+  #summary.visible { display:grid; }
+  #summary h1 { margin:0; font-size:clamp(30px,5vw,54px); }
+  #summary p { margin:0; font-size:19px; }
+  #summary button { justify-self:center; border:0; border-radius:8px; padding:12px 24px; font:700 18px system-ui; cursor:pointer; }
+  #summary .panel-portrait { display:block; width:88px; height:88px; object-fit:cover; border-radius:10px; margin:0 auto 10px; }
+  #help { margin-top: 4px; font-size: 13px; opacity: .95; }
+  #basketballOverlay { position:fixed; inset:0; z-index:10; display:none; background:#000; }
+  #basketballOverlay iframe { width:100%; height:100%; border:0; display:block; }
+  #basketballClose { position:absolute; top:12px; right:14px; z-index:1; border:0; border-radius:8px; padding:9px 13px; background:rgba(20,30,35,.85); color:#fff; font:700 16px system-ui; cursor:pointer; }
+  #prompt { position: fixed; left: 50%; bottom: 13%; transform: translateX(-50%); color: white; background: rgba(27, 47, 55, .78); border: 1px solid rgba(255,255,255,.45); border-radius: 8px; padding: 10px 18px; font-size: 17px; z-index: 3; display: none; }
+  #crosshair { position: fixed; left: 50%; top: 50%; width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,.85); box-shadow: 0 0 2px #243746; z-index: 2; pointer-events: none; }
+  #dialog { position:fixed; left:50%; bottom:5%; transform:translateX(-50%); display:none; max-width:min(760px,90vw); padding:14px 18px; color:#fff; background:rgba(24,38,47,.92); border:1px solid rgba(255,255,255,.45); border-radius:10px; z-index:4; font-size:17px; }
+  #dialog.visible { display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+  #dialogPortrait { flex:none; width:92px; height:120px; object-fit:cover; border-radius:8px; display:none; }
+  #chatBox { width:100%; }
+  #chatInput { width:calc(100% - 75px); padding:9px; color:#fff; background:#18262f; border:1px solid #607783; border-radius:6px; font:inherit; }
+  #chatSend { padding:9px 13px; color:#fff; background:#425a67; border:0; border-radius:6px; font:inherit; }
+  #dialogName { flex:none; padding:5px 9px; border-radius:6px; background:#425a67; font-weight:800; }
+</style>
+</head>
+<body>
+<div id="overlay" class="prestart"><h1>校园逃跑计划</h1><div id="startButtons"></div><p>WASD 移动 · 鼠标视角</p></div>
+<div id="hud"><div id="stats"></div><div id="skipBadge">⚠ 逃课中</div><div id="alertBar"><div id="alertFill"></div></div><div id="suspicionRow" style="display:none">怀疑值</div><div id="suspicionBar"><div id="suspicionFill"></div></div><div id="questRow" style="display:none"></div><div id="help">WASD 移动 · 鼠标视角 · E 开门/关门 · F 对话/打篮球/交互</div></div>
+<div id="crosshair"></div><div id="prompt">按 E 开门</div><div id="dialog"><img id="dialogPortrait" alt=""><span id="dialogName">严老师</span><span id="dialogText"></span><div id="chatBox" style="display:none"><div id="chatMeta"></div><input id="chatInput" type="text" maxlength="120" placeholder="输入你想说的话…"><button id="chatSend" type="button">发送</button><span id="chatHint">Esc 关闭</span></div></div>
+<div id="toast"></div><div id="summary"></div>
+<div id="basketballOverlay"><button id="basketballClose" type="button">✕ 关闭</button><iframe title="篮球小游戏" src="about:blank"></iframe></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
+<script>
+(() => {
+  const SAVE_KEY = 'campusEscapeSaveV1';
+  const NPC_PORTRAITS = { yan_teacher:'assets/npc-yan.webp', zhou_counselor:'assets/npc-zhou.webp', admin:'assets/npc-admin.webp' };
+  const NORMAL_FOG_COLOR = 0xf6e3c2;
+  const STRANGE_FOG_COLOR = 0x35306e;
+  const CONFIG = { classSeconds:110, breakSeconds:25, lunchSeconds:75, eveningSeconds:90, attendanceCredits:2, caughtPenalty:[4,6,8,10,12], dailyPeriods:[3,3,4,4,3,3,2], courses:[['高等数学','大学英语','人工智能导论'],['Python程序设计','高等数学','大学物理'],['线性代数','Python程序设计','机器人通识','大学英语'],['高等数学','数据结构入门','大学物理','体育'],['人工智能导论','线性代数','思政课'],['机器人通识','大学英语','Python程序设计'],['期末考核（一）','期末考核（二）']], teacherViewDistance:9, teacherViewHalfAngle:38, alertRiseSeconds:1.5, alertDecayPerSec:30, teacherSpeed:2.3, talkDistance:2.6,
+    counselorSpeed:2.0, // 周老师巡逻速度
+    suspicionViewDistance:9, // 怀疑视野距离
+    suspicionViewHalfAngle:38, // 怀疑视野半角
+    suspicionRiseSeconds:2, // 被看见时怀疑涨满秒数
+    suspicionDecayPerSec:6, // 离开视线后的怀疑回落速度
+    suspicionDecayInClassPerSec:15, // 教室内怀疑回落速度
+    mysteryReward1:6, // 神秘任务奖励，位于数值表 +5~+8 学分区间
+    mysteryReward2:8, // 神秘任务奖励，位于数值表 +5~+8 学分区间
+    strangeUnlockDay:5, // 奇异空间解锁日
+    strangeTimeLimit:90, // 奇异空间限时秒数
+    strangeFragmentCredits:3, // 奇异空间学分碎片奖励
+    NPC_API_URL:'http://localhost:8787/api/npc-chat', // 部署后改成代理地址
+    NPC_API_TIMEOUT_MS:16000,
+    NPC_NAMES:{yan_teacher:'严老师',zhou_counselor:'周辅导员',admin:'神秘人「管理员」'},
+    NPC_INITIAL_RELATION:{yan_teacher:{favor:50,trust:40,alert:20},zhou_counselor:{favor:55,trust:50,alert:15},admin:{favor:0,trust:30,alert:50}},
+    NPC_EVENT_DELTAS:{ATTENDED_CLASS:{favor:3,trust:2,alert:-2},ANSWERED_QUESTION:{favor:5,trust:3,alert:-3},ABSENT_CAUGHT:{favor:-5,trust:-5,alert:15},ABSENT_PATROL:{favor:-3,trust:-3,alert:12},EXCUSE_ACCEPTED:{favor:0,trust:0,alert:5},EXCUSE_EXPOSED:{favor:-5,trust:-15,alert:20},HELPED_NPC:{favor:10,trust:5,alert:-5},GIFTED_NPC:{favor:8,trust:3,alert:-3},CONFRONTED_NPC:{favor:-10,trust:-10,alert:25},TASK_COMPLETED:{favor:5,trust:10,alert:-5},TASK_FAILED:{favor:-3,trust:-10,alert:15},CONTRACT_BROKEN:{favor:0,trust:-20,alert:30},PASSED_PATROL:{favor:2,trust:2,alert:-3},SCORE_DEDUCTED:{favor:-8,trust:0,alert:10},CONTRACT_MADE:{favor:0,trust:5,alert:0}},
+    NPC_INTENT_EFFECTS:{'放行':{},'盘问':{alert:5},'追查':{alert:10},'帮忙':{},'扣分建议':{}}
+  };
+  const gameState = { day:1, credits:0, maxCredits:60, caught:0, caughtMax:5, alert:0, suspicion:0, periodIndex:0, periodTimeLeft:0, skipping:false, todayAttended:0, todayTotal:0, todaySkipped:0, todayCredits:0, todayBasketballCredits:0, lastBasketballCreditDay:0, minigameOpen:false, inStrangeSpace:false, strangeTimeLeft:0, finished:false, schedule:[], sessionFlag:{rollCalled:false,skipRecorded:false}, panelOpen:false, chatOpen:false, npcState:Object.fromEntries(Object.entries(CONFIG.NPC_INITIAL_RELATION).map(([id,relation])=>[id,{relation:{...relation},memory:[],history:'',lastAttendedDay:0,assistedDay:0,deductDay:0}])), sideQuestData:null, mysteryQuestData:{ quests:[{id:'mystery1',day:4,itemName:'丢失的教案',reward:6,status:'locked'},{id:'mystery2',day:6,itemName:'第零页',reward:8,status:'locked'}],holdingItem:null }, strangeSpaceData:{lastEnterDay:0,enteredToday:false} };
+  const DOOR_WIDTH = 2.6;
+  const playerRadius = .34;
+  const forward = new THREE.Vector3();
+  const right = new THREE.Vector3();
+  const move = new THREE.Vector3();
+  const scene = new THREE.Scene();
+  const skyCanvas = document.createElement('canvas'); skyCanvas.width = 16; skyCanvas.height = 512;
+  const skyCtx = skyCanvas.getContext('2d'); const skyGradient = skyCtx.createLinearGradient(0, 0, 0, 512);
+  skyGradient.addColorStop(0, '#6f9fd8'); skyGradient.addColorStop(.5, '#bcd7ee'); skyGradient.addColorStop(1, '#ffe3b3');
+  skyCtx.fillStyle = skyGradient; skyCtx.fillRect(0, 0, 16, 512);
+  const skyTexture = new THREE.CanvasTexture(skyCanvas); skyTexture.colorSpace = THREE.SRGBColorSpace; scene.background = skyTexture;
+  scene.fog = new THREE.Fog(0xf6e3c2, 55, 210);
+  const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 120);
+  camera.position.set(0, 1.6, 5);
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  document.body.appendChild(renderer.domElement);
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xb4c7bc, 2.0));
+  const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.left = -52; sun.shadow.camera.right = 52; sun.shadow.camera.top = 52; sun.shadow.camera.bottom = -52; sun.shadow.camera.near = 1; sun.shadow.camera.far = 170;
+  sun.shadow.bias = -0.0005;
+  sun.position.set(-25, 46, 60); sun.target.position.set(0, 0, 34); scene.add(sun, sun.target);
+
+  const materials = {};
+  const mat = (color) => materials[color] || (materials[color] = new THREE.MeshLambertMaterial({ color }));
+  const colliders = [];
+  function box(name, x, y, z, sx, sy, sz, color, solid = false) {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat(color));
+    mesh.name = name; mesh.position.set(x, y, z); scene.add(mesh);
+    if (solid) colliders.push({ mesh, sx, sz });
+    return mesh;
+  }
+  // 教室，前墙在 -Z，后墙在 +Z；两侧外侧是一条贯通走廊。
+  const wallSegmentWidth = (20 - DOOR_WIDTH) / 2;
+  const wallSegmentOffset = DOOR_WIDTH / 2 + wallSegmentWidth / 2;
+  box('class floor', 0, -0.12, 0, 20, .24, 18, 0xe8d8ad);
+  box('corridor floor', 0, -.13, 16, 20, .22, 14, 0xc5dce0);
+  box('front corridor floor', 0, -.13, -16, 20, .22, 14, 0xc5dce0);
+  box('ceiling', 0, 6.1, 0, 20, .2, 18, 0xf7f1dc);
+  box('left wall', -10, 3, 0, .35, 6, 18, 0xf0c987, true);
+  box('right wall', 10, 3, 0, .35, 6, 18, 0xf0c987, true);
+  // 墙段留下门洞，门洞宽 2.6（与门板和碰撞一致），门高 3。
+  for (const z of [-9, 9]) {
+    box('front/back wall left', -wallSegmentOffset, 3, z, wallSegmentWidth, 6, .35, 0xf0c987, true);
+    box('front/back wall right', wallSegmentOffset, 3, z, wallSegmentWidth, 6, .35, 0xf0c987, true);
+    box('wall above doorway', 0, 4.65, z, DOOR_WIDTH, 2.7, .35, 0xf0c987, false);
+  }
+  box('corridor left wall', -10, 2.5, 16, .35, 5, 14, 0xb7d0d5, true);
+  box('corridor right wall', 10, 2.5, 16, .35, 5, 14, 0xb7d0d5, true);
+  box('corridor end left', -5.85, 2.5, 23, 7.7, 5, .35, 0xb7d0d5, true);
+  box('corridor end right', 5.85, 2.5, 23, 7.7, 5, .35, 0xb7d0d5, true);
+  box('corridor end lintel', 0, 4.3, 23, 3.4, 1.4, .35, 0xb7d0d5, false);
+  const HOOP_POS = { x:0, z:21.6 }, HOOP_TRIGGER_RADIUS = 2.6;
+  box('basketball hoop pole', 0, 2.15, 21.65, .22, 4.3, .22, 0x59636b, true);
+  box('basketball backboard', 0, 3.65, 21.12, 2.2, 1.25, .16, 0xf5f1df, true);
+  box('basketball rim', 0, 3.08, 20.84, 1.05, .12, .16, 0xd7472f, true);
+  box('basketball rim support', 0, 3.25, 21.02, .16, .18, .38, 0x59636b);
+  box('basketball sign', 2.1, 1.65, 21.35, 1.2, .9, .12, 0xe8a53a, true);
+  box('front corridor left wall', -10, 2.5, -16, .35, 5, 14, 0xb7d0d5, true);
+  box('front corridor right wall', 10, 2.5, -16, .35, 5, 14, 0xb7d0d5, true);
+  box('front corridor end', 0, 2.5, -23, 20, 5, .35, 0xb7d0d5, true);
+
+  // 黑板与讲台。
+  box('blackboard', 0, 3.25, -8.72, 7.2, 2.2, .16, 0x176d4b);
+  box('board frame top', 0, 4.39, -8.6, 7.5, .12, .22, 0xd7a94f);
+  box('board frame bottom', 0, 2.11, -8.6, 7.5, .12, .22, 0xd7a94f);
+  box('podium', 0, .65, -6.4, 2.1, 1.3, 1.1, 0xc47a42, true);
+
+  // 每张桌椅由桌面、四条桌腿和椅面椅背组成。
+  for (let row = 0; row < 5; row++) {
+    const z = -3.6 + row * 2.5;
+    for (let col = 0; col < 4; col++) {
+      const x = -6.1 + col * 4.05;
+      box('desk top', x, 1.45, z, 2.15, .18, 1.05, 0xd59a55);
+      for (const dx of [-.88, .88]) for (const dz of [-.38, .38]) box('desk leg', x + dx, .72, z + dz, .12, 1.35, .12, 0x8f603a);
+      box('chair seat', x, .76, z + 1.05, 1.05, .14, .85, 0x4d9ab0);
+      box('chair back', x, 1.25, z + 1.43, 1.05, .9, .12, 0x4d9ab0);
+      colliders.push({ bounds: { minX: x - 2.15 / 2, maxX: x + 2.15 / 2, minZ: z - 1.05 / 2, maxZ: z + 1.43 + .12 / 2 } });
+    }
+  }
+
+  function makeDoor(label, z, hingeX, direction, axis = 'z') {
+    const pivot = new THREE.Group();
+    const plane = z, hinge = hingeX;
+    if (axis === 'x') pivot.position.set(plane, 0, hinge); else pivot.position.set(hingeX, 0, z); scene.add(pivot);
+    const width = DOOR_WIDTH;
+    const leaf = new THREE.Mesh(axis === 'x' ? new THREE.BoxGeometry(.18, 2.95, width) : new THREE.BoxGeometry(width, 2.95, .18), mat(0x8e5638));
+    if (axis === 'x') leaf.position.set(0, 1.475, direction * width / 2); else leaf.position.set(direction * width / 2, 1.475, 0); pivot.add(leaf);
+    const handle = new THREE.Mesh(new THREE.SphereGeometry(.075, 12, 8), mat(0xf5d66f));
+    if (axis === 'x') handle.position.set(direction * .12, 1.45, direction * (width - .22)); else handle.position.set(direction * (width - .22), 1.45, direction > 0 ? .12 : -.12); pivot.add(handle);
+    const door = { label, pivot, z: axis === 'x' ? hinge : z, hingeX: axis === 'x' ? plane : hingeX, direction, open: false, passable:false, width, cachedBounds: null, axis, plane, hinge };
+    door.cx = axis === 'x' ? plane : hinge + direction * width / 2;
+    door.cz = axis === 'x' ? hinge + direction * width / 2 : plane;
+    door.collider = { door };
+    colliders.push(door.collider);
+    return door;
+  }
+  const doors = [makeDoor('前门', -9, -1.2, 1), makeDoor('后门', 9, 1.2, -1), makeDoor('正门', 23, -1.3, 1)];
+
+  function makeSign(text, w, h, bg, fg) {
+    const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = Math.round(512 * h / w);
+    const ctx = canvas.getContext('2d'); ctx.fillStyle = bg; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = fg; ctx.font = `bold ${Math.round(canvas.height * .58)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+    const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide })); mesh.name = `sign ${text}`; return mesh;
+  }
+  function addSign(text, w, h, bg, fg, x, y, z, rotationY = 0) { const s = makeSign(text, w, h, bg, fg); s.position.set(x, y, z); s.rotation.y = rotationY; scene.add(s); return s; }
+  // 校园外围、教学楼立面与远景。
+  box('campus grass floor', 5, -.3, 72.5, 200, .24, 105, 0x77b25a);
+  for (const [name, x, z, sx, sz] of [['campus wall south west', -60.5, 23, 69, .4], ['campus wall south east', 65.5, 23, 79, .4], ['campus wall west', -95, 74, .4, 102], ['campus wall north west', -51, 125, 88, .4], ['campus wall north east', 56, 125, 98, .4], ['campus wall east', 105, 74, .4, 102]]) box(name, x, 1.1, z, sx, 2.2, sz, 0xa8a29a, true);
+  const skyline = [[-120,142,22,17,22],[-91,154,30,17,28],[-57,141,25,18,18],[-25,157,34,16,27],[12,143,24,18,20],[45,158,28,18,30],[79,143,32,17,24],[113,156,24,18,29],[140,140,22,17,19],[-125,60,25,17,20],[-125,96,31,17,26],[130,56,28,17,18],[130,98,34,17,28]];
+  for (let i = 0; i < skyline.length; i++) { const [x,z,w,d,h] = skyline[i]; box(`skyline ${i+1}`, x, h/2-0.18, z, w, h, d, 0x9db4c6); }
+  box('main school building', 0, 10.5, 24.6, 22, 11, 1.6, 0xe9e2d4);
+  for (const x of [-18, 18]) box('school side wing', x, 6, 20, 16, 12, 7, 0xe9e2d4);
+  for (const y of [6.8,9.2,11.6,14]) for (const x of [-9.6,-6.9,-4.2,-1.5,1.5,4.2,6.9,9.6]) { box('main facade glass window', x, y, 25.45, 1.5, 1.7, .08, 0x51606e); box('main window sill', x, y-.91, 25.45, 1.5, .12, .08, 0xf5efe0); }
+  for (const side of [-1,1]) for (const y of [4.2,7,9.8]) for (const dx of [12,16,20,24]) box('wing glass window', side * dx, y, 23.55, 1.5, 1.7, .08, 0x51606e);
+  box('main entrance canopy', 0, 3.55, 25.2, 7.6, .25, 4.4, 0x8a4f36);
+  for (const x of [-3.4,3.4]) box('canopy pillar', x, 1.7, 27.1, .28, 3.4, .28, 0x6e6a61, true);
+  box('entrance step upper', 0, -.06, 26.2, 6.4, .12, 2.2, 0xcfc8ba); box('entrance step lower', 0, -.02, 24.6, 5.2, .16, 1.2, 0xcfc8ba);
+  addSign('教学楼', 4.4, 1.1, '#3d5a73', '#ffffff', 0, 4.9, 25.5);
+
+  // 广场铺装、家具、绿化与灯具。
+  box('plaza floor', 0, -.26, 40.5, 36, .24, 35, 0xd9c9a8);
+  for (const z of [29,35,41,47,53]) box('plaza floor grid', 0, -.138, z, 36, .012, .09, 0xbfb094);
+  for (const x of [-12,-6,6,12]) box('plaza floor grid', x, -.138, 40.5, .09, .012, 35, 0xbfb094);
+  box('plaza axis floor', 0, -.245, 40.5, 6, .25, 35, 0xe6dcc2);
+  box('flag base', 0, .25, 44, 1.8, .5, 1.8, 0xb9b3a8, true);
+  const flagPole = new THREE.Mesh(new THREE.CylinderGeometry(.07,.09,10,12), mat(0xd8d8d8)); flagPole.name='flag pole'; flagPole.position.set(0,5.2,44); scene.add(flagPole); colliders.push({bounds:{minX:-.45,maxX:.45,minZ:43.55,maxZ:44.45}});
+  box('campus flag', 1.15, 9.3, 44, 2.2, 1.3, .05, 0xd23b2e);
+  for (const [x,z] of [[-9.5,33],[9.5,33],[-9.5,51],[9.5,51]]) { box('flower bed border',x,.15,z,6,.3,3,0x6d4c33,true); for (let i=0;i<3;i++) box('flower bed flowers',x-1.9+i*1.9,.31,z,1.9,.1,2.6,[0xe8833a,0x9a6fc0,0xd94f4f][i]); }
+  for (const [x,z] of [[-5.8,30],[5.8,30],[-5.8,54],[5.8,54]]) { box('bench seat',x,.55,z,2.2,.12,.55,0x9a6a42); box('bench back',x,.88,z+(z<42?-.27:.27),2.2,.5,.1,0x9a6a42); for(const dx of [-.8,.8]) box('bench leg',x+dx,.27,z,.12,.55,.12,0x59636b); colliders.push({bounds:{minX:x-1.1,maxX:x+1.1,minZ:z-.35,maxZ:z+.35}}); }
+  const lampMat = new THREE.MeshLambertMaterial({color:0xffe9a8,emissive:0xffca55,emissiveIntensity:.9});
+  for (const [x,z] of [[-16.5,28],[16.5,28],[-16.5,44],[16.5,44],[-16.5,56],[16.5,56]]) { const pole=new THREE.Mesh(new THREE.CylinderGeometry(.06,.08,3.6,10),mat(0x3f4a52));pole.name='plaza lamp post';pole.position.set(x,1.8,z);scene.add(pole);const head=new THREE.Mesh(new THREE.SphereGeometry(.22,12,8),lampMat);head.name='plaza lamp head';head.position.set(x,3.7,z);scene.add(head);colliders.push({bounds:{minX:x-.3,maxX:x+.3,minZ:z-.3,maxZ:z+.3}}); }
+  for (const x of [-4.6,4.6]) { const bin=new THREE.Mesh(new THREE.CylinderGeometry(.26,.24,.68,12),mat(0x3e7d4e));bin.name='campus trash bin';bin.position.set(x,.34,30);scene.add(bin);colliders.push({bounds:{minX:x-.3,maxX:x+.3,minZ:29.7,maxZ:30.3}}); }
+  function tree(x,z) { const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.13,.17,1.7,10),mat(0x7a5230));trunk.name='campus tree trunk';trunk.position.set(x,.85,z);scene.add(trunk);const crown=new THREE.Mesh(new THREE.SphereGeometry(1.25,12,10),mat(0x4e8f3f));crown.name='campus tree crown';crown.position.set(x,2.6,z);scene.add(crown);const crown2=new THREE.Mesh(new THREE.SphereGeometry(.85,12,10),mat(0x5da34c));crown2.name='campus tree crown';crown2.position.set(x+.55,3.3,z+.2);scene.add(crown2);colliders.push({bounds:{minX:x-.32,maxX:x+.32,minZ:z-.32,maxZ:z+.32}}); }
+  for (const [x,z] of [[-15,31],[15,31],[-15,41],[15,41],[-15,51],[15,51],[-8,60],[8,60],[-20,60],[20,60]]) tree(x,z);
+
+  // 食堂与图书馆：东侧新址。
+  const libraryWall=0xb9b3a8;
+  box('library west wall south',64,4,30.85,.35,8,13.7,libraryWall,true); box('library west wall north',64,4,47.15,.35,8,13.7,libraryWall,true); box('library door lintel',64,5.5,39,.35,5,2.6,libraryWall);
+  box('library east wall',98,4,39,.35,8,30,libraryWall,true); box('library north wall',81,4,24,34,8,.35,libraryWall,true); box('library south wall',81,4,54,34,8,.35,libraryWall,true);
+  box('library ceiling',81,8.1,39,34.5,.25,30.5,0x9a958a); box('library roof trim',81,8.45,39,35.5,.5,31.5,0xa8a29a);
+  doors.push(makeDoor('图书馆门',64,37.7,1,'x'));
+  for(const z of [30,36,42,48]) box('library facade window',98.22,4.6,z,.08,1.6,4.6,0x51606e);
+  for(const [x,z] of [[61.5,34.5],[61.5,43.5]]) { const pillar=new THREE.Mesh(new THREE.CylinderGeometry(.34,.38,7),mat(libraryWall)); pillar.name='library portico pillar'; pillar.position.set(x,3.5,z); scene.add(pillar); colliders.push({bounds:{minX:x-.42,maxX:x+.42,minZ:z-.42,maxZ:z+.42}}); }
+  box('library portico lintel',62.2,7.25,39,2.8,.7,12.5,0xa8a29a); box('library apron floor',58,-.25,39,12,.25,26,0xd6cfc0);
+  for(const [x,y] of [[62.8,-.085],[61.7,-.055],[60.6,-.025]]) box('library entrance step',x,y,39,1.1,.07,12,0xcfc8ba);
+  box('library stair cheek west',62,.3,32.8,4.6,.6,.5,libraryWall,true); box('library stair cheek east',62,.3,45.2,4.6,.6,.5,libraryWall,true);
+  const librarySign=makeSign('图书馆',4.6,1.1,'#5a5348','#ffffff'); librarySign.position.set(63.4,6.7,39); librarySign.rotation.y=-Math.PI/2; scene.add(librarySign);
+  box('library path floor',46,-.25,39,12,.25,3.5,0xe6dcc2); box('library south path floor',57.5,-.25,56,3.5,.25,16,0xe6dcc2);
+  box('library interior floor',81,-.24,39,33,.25,29,0xcfd6da);
+  const bookColors=[0xc0533f,0x3f6fb5,0x53a06a,0xd9a441,0x7a5fa0,0xd97b29];
+  for(const x of [74,88]) for(let i=0;i<3;i++){const z=[31,39,47][i];box('library bookshelf',x,1.25,z,.7,2.5,3.4,0x7a5a3a,true);for(const side of [-1,1])for(let level=0;level<3;level++)box('library book spines',x+side*.39,.65+level*.65,z,.05,.48,3,bookColors[(i+level)%bookColors.length]);}
+  const readingLampMat=new THREE.MeshLambertMaterial({color:0xe8f4ff,emissive:0xcfe4ff,emissiveIntensity:.85});
+  for(const z of [31,47]){box('library reading table',81,.78,z,1.3,.09,4.4,0x8a6a48);for(const dz of [-1.9,1.9])box('library reading table leg',81,.38,z+dz,.12,.75,1.1,0x6e5638);for(const dz of [-1.4,0,1.4]){const lamp=new THREE.Mesh(new THREE.BoxGeometry(.16,.22,.16),readingLampMat);lamp.name='library reading lamp';lamp.position.set(81,.94,z+dz);scene.add(lamp);}colliders.push({bounds:{minX:80.2,maxX:81.8,minZ:z-2.25,maxZ:z+2.25}});}
+  const libraryLight=new THREE.PointLight(0xd6e6ff,26,38); libraryLight.position.set(81,3.6,39); scene.add(libraryLight); tree(56,28); tree(56,50);
+
+  const canteenWall=0x6b655c;
+  box('canteen west lower frame',70,.6,73,.35,1.2,26,canteenWall,true); box('canteen west upper frame',70,6.9,73,.35,1.4,26,canteenWall,true);
+  box('canteen east wall',98,3.8,73,.35,7.6,26,canteenWall,true); box('canteen north wall',84,3.8,60,28,7.6,.35,canteenWall,true);
+  box('canteen south wall west',76.85,3.8,86,13.7,7.6,.35,canteenWall,true); box('canteen south wall east',92.15,3.8,86,11.7,7.6,.35,canteenWall,true); box('canteen door lintel',85,6.1,86,2.6,3,.35,canteenWall);
+  box('canteen ceiling',84,7.7,73,28.5,.25,26.5,0x8a8378);
+  const canteenGlassMat=new THREE.MeshLambertMaterial({color:0x8fb2c9,emissive:0xcc8433,emissiveIntensity:.38,transparent:true,opacity:.82});
+  for(const [y,h,z,len] of [[1.9,3.2,66.5,11],[1.9,3.2,79.5,11],[5.9,3,73,24]]){const glass=new THREE.Mesh(new THREE.BoxGeometry(.12,h,len),canteenGlassMat);glass.name='canteen facade glass';glass.position.set(70.25,y,z);scene.add(glass);}
+  box('canteen floor divider',70.2,3.95,73,.18,.5,26,0x4a4f55); doors.push(makeDoor('食堂门',86,83.7,1));
+  const canteenSign=makeSign('食堂',3.2,.95,'#7a3b2e','#ffe9b0');canteenSign.position.set(85,6.9,86.45);scene.add(canteenSign);
+  box('canteen entrance step upper',85,-.07,87.3,4.6,.14,2.2,0xcfc8ba);box('canteen entrance step lower',85,-.1,88.3,3.8,.08,1,0xcfc8ba);
+  box('canteen path floor',85,-.25,94,3.5,.25,12,0xe6dcc2);box('canteen interior floor',84,-.24,73,27,.25,25,0xe3cf9f);
+  box('canteen serving counter',95.2,.55,73,3.4,1.1,18,0xb08954,true);box('canteen counter top',95.2,1.16,73,3.8,.1,18.6,0x8a6a42);const canteenGuard=new THREE.Mesh(new THREE.BoxGeometry(.06,.85,18),canteenGlassMat);canteenGuard.name='canteen glass guard';canteenGuard.position.set(93.55,1.8,73);scene.add(canteenGuard);
+  for(const z of [66,73,80]){const sign=makeSign('今日菜单',1.7,.85,'#37474f','#ffecb3');sign.position.set(97.75,2.7,z);sign.rotation.y=-Math.PI/2;scene.add(sign);}
+  for(const [x,z] of [[76,66],[76,73],[76,80],[86,66],[86,73],[86,80]]){box('canteen dining table',x,.78,z,1.7,.08,1,0xd9b380);box('canteen table leg',x,.38,z,.12,.75,.12,0x8a6a42);for(const side of [-1,1])box('canteen chair',x+side*1.05,.25,z,.45,.5,.45,0x7a9e7e);colliders.push({bounds:{minX:x-1.3,maxX:x+1.3,minZ:z-.55,maxZ:z+.55}});}
+  const canteenLampMat=new THREE.MeshLambertMaterial({color:0xffe2b0,emissive:0xffbe78,emissiveIntensity:1});for(const [x,z] of [[80,66],[88,66],[80,80],[88,80]]){box('canteen lamp rod',x,3.6,z,.04,1.2,.04,0x555049);const lamp=new THREE.Mesh(new THREE.SphereGeometry(.16),canteenLampMat);lamp.name='canteen lamp';lamp.position.set(x,2.95,z);scene.add(lamp);}for(const z of [66,80]){const light=new THREE.PointLight(0xffd9a0,30,34);light.position.set(84,3.4,z);scene.add(light);}
+
+  // 西侧实验楼。
+  const labWall=0x9fb2bd;
+  box('lab east wall south',-68,6.5,28.35,.35,13,8.7,labWall,true); box('lab east wall north',-68,6.5,40.15,.35,13,9.7,labWall,true);
+  box('lab east door lintel',-68,8,34,.35,10,2.6,labWall);
+  box('lab west wall',-92,6.5,34,.35,13,20,labWall,true); box('lab north wall',-80,6.5,24,24,13,.35,labWall,true); box('lab south wall',-80,6.5,44,24,13,.35,labWall,true);
+  box('lab foundation band',-80,.5,34,24.4,1,20.4,0x5f707c);
+  doors.push(makeDoor('实验楼门',-68,32.7,1,'x'));
+  box('lab ceiling',-80,13.1,34,24.5,.25,20.5,0x8799a5);
+  for(const y of [3.6,7,10.4]) for(const x of [-89,-84.5,-80,-75.5,-71]) box('lab south window',x,y,44.22,1.7,1.5,.08,((Math.round(y*10)+Math.round(x*10))%2)?0x44586a:0x2e3a44);
+  const labSign=makeSign('实验楼',3.4,1,'#3d4f5c','#e8f2f8'); labSign.position.set(-67.4,4.8,34); labSign.rotation.y=Math.PI/2; scene.add(labSign);
+  box('lab path floor',-43,-.25,34,46,.25,3.5,0xe6dcc2);
+  box('lab interior floor',-80,-.24,34,23,.25,20,0x9aa5a8);
+  for(const [x,z] of [[-86,30],[-86,38],[-74,30],[-74,38]]) { box('lab bench cabinet',x,.36,z,4.2,.72,1.1,0x5f6a70,true); box('lab bench top',x,.85,z,4.6,.1,1.4,0x8b959b); box('lab bench sink',x+1.45,.93,z,.7,.12,.5,0x3f6fb5); }
+  const reagentColors=[0x7fd4a8,0xd97b29,0x6fb7d9,0xd96a6a,0xd9c44a];
+  for(const [x,z] of [[-86,30],[-74,38]]) for(let i=0;i<5;i++) box('lab reagent bottle',x-1.45+i*.48,1.05,z,.13,.3,.13,reagentColors[i]);
+  box('lab medicine cabinet',-80,1.1,24.6,6,2.2,.6,0x4c5a63,true); box('lab medicine bottle grid',-80,1.8,24.95,5.6,1.8,.05,0x35586a);
+  box('lab fume hood',-90.5,1.2,42.5,1.8,2.4,.9,0x5a6672,true); box('lab fume hood glass',-90.5,1.5,42.02,1.5,1,.06,0x22303a);
+  box('lab blackboard',-91.7,2.1,34, .08,1.6,6,0x2f4f43); const labRules=makeSign('实验守则',1.5,.9,'#5c5340','#ffffff'); labRules.position.set(-91.7,2.1,40); labRules.rotation.y=Math.PI/2; scene.add(labRules);
+  const labWarning=makeSign('闲人免进',1.6,.8,'#8a2f23','#ffffff'); labWarning.position.set(-69,1.9,36.5); labWarning.rotation.y=-Math.PI/2; scene.add(labWarning);
+  box('lab cardboard box',-89.5,.31,25.5,.62,.62,.62,0xb08954,true); box('lab cardboard box',-88.7,.25,26.4,.5,.5,.5,0xa3805e,true);
+  const labChair=box('lab fallen chair',-72,.25,29.5,.45,.5,.45,0x7a4a3a); labChair.rotation.z=.35; colliders.push({bounds:{minX:-72.35,maxX:-71.65,minZ:29.15,maxZ:29.85}});
+  const labLight=new THREE.PointLight(0xbfd4e6,18,30); labLight.position.set(-80,3.2,34); scene.add(labLight);
+
+  // 南缘东段三栋学生宿舍。
+  const dormWall=0xd8c6a8;
+  function dormShell(label,cx,z0,width,doorX,windowXs,withLobby=false){
+    const left=cx-width/2,right=cx+width/2;
+    box(`${label} north wall west`,(left+doorX-1.3)/2,9.3,102,doorX-1.3-left,18.6,.35,dormWall,true);box(`${label} north wall east`,(doorX+1.3+right)/2,9.3,102,right-doorX-1.3,18.6,.35,dormWall,true);box(`${label} entrance lintel`,doorX,10.8,102,2.6,15.6,.35,dormWall);
+    box(`${label} south wall`,cx,9.3,124,width,18.6,.35,dormWall,true);box(`${label} west wall`,left,9.3,113,.35,18.6,22,dormWall,true);box(`${label} east wall`,right,9.3,113,.35,18.6,22,dormWall,true);box(`${label} ceiling`,cx,18.7,113,width+.5,.25,22.5,0xcbb693);
+    doors.push(makeDoor(label==='dorm'?'宿舍门':label==='dorm2'?'宿舍2门':'宿舍3门',102,doorX-1.3,1));
+    const sign=makeSign(label==='dorm'?'学生宿舍 · 1 号楼':`宿舍 ${label==='dorm2'?'2':'3'} 号楼`,label==='dorm'?4.4:3.6,1,'#6e5136','#fff3d6');sign.position.set(doorX,5.8,101.4);sign.rotation.y=Math.PI;scene.add(sign);
+    for(const y of [3.2,6.4,9.6,12.8,16])for(const x of windowXs)box(`${label} north window`,x,y,101.78,1.1,1.3,.08,((Math.round(y*10)+x)%2)?0xffd98a:0x5a6a76);
+    if(withLobby){box('dorm lobby partition',43,2.4,108,26,4.8,.3,0xc4b294,true);box('dorm partition upper',43,11.7,108,26,13.8,.3,0xc4b294);box('dorm lobby floor',43,-.24,105,25,.25,5.5,0xd9c9a3);box('dorm reception desk',33,.38,105,2.4,.76,.8,0x8a6a48,true);box('dorm lobby sofa',52,.28,104.5,1.9,.56,.85,0x7a9e7e,true);box('dorm lobby sofa',36,.28,104.5,1.9,.56,.85,0x7a9e7e,true);const board=makeSign('公告栏',1.9,1.05,'#37474f','#ffffff');board.position.set(48,2,107.8);board.rotation.y=Math.PI;scene.add(board);box('dorm parcel lockers',54.5,.95,105,.5,1.9,4,0x4d7ab0,true);const light=new THREE.PointLight(0xffe6bb,22,26);light.position.set(43,3,105);scene.add(light);}
+    box(`${label} path floor`,doorX,-.25,99,3.5,.25,6,0xe6dcc2);
+  }
+  dormShell('dorm',43,102,26,43,[33,36,39,47,50,53],true);
+  const dormBlockSign=makeSign('A1 栋',1.5,.75,'#37474f','#ffffff');dormBlockSign.position.set(45.8,2.6,101.45);dormBlockSign.rotation.y=Math.PI;scene.add(dormBlockSign);
+  box('dorm lobby false door',47,1.3,107.8,1.6,2.6,.08,0x8e5638); box('dorm lobby false door',51,1.3,107.8,1.6,2.6,.08,0x8e5638);
+  for(const [x,label] of [[47,'102'],[51,'103']]) { const d=makeSign(label,.8,.45,'#37474f','#ffffff');d.position.set(x,2.3,107.72);d.rotation.y=Math.PI;scene.add(d); }
+  const extinguisher=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,.42),mat(0xd93a2e));extinguisher.position.set(45.5,.21,104);scene.add(extinguisher);colliders.push({bounds:{minX:45.37,maxX:45.63,minZ:103.87,maxZ:104.13}});
+  box('dorm sample room partition west',37,1.5,102.6,.22,3,1.2,0xc4b294,true);box('dorm sample room partition east',37,1.5,106.3,.22,3,3.4,0xc4b294,true); const roomSign=makeSign('101 · 我的宿舍',1.7,.65,'#6e5136','#fff3d6');roomSign.position.set(37.15,2.2,103.9);roomSign.rotation.y=Math.PI/2;scene.add(roomSign);
+  box('dorm sample room bed',31.2,.28,106.5,1.1,.5,2.2,0x8fb2c9,true);box('dorm sample room pillow',31.2,.6,105.6,.7,.14,.5,0xffffff);box('dorm sample room blanket',31.2,.58,107.4,1.05,.1,1.2,0xd97b29);box('dorm sample room desk',31,.72,103.2,1.5,.75,.65,0xa8895e,true);box('dorm sample room chair',31.9,.25,103.2,.45,.5,.45,0x4d7ab0,true); const lamp=new THREE.Mesh(new THREE.BoxGeometry(.14,.3,.14),new THREE.MeshLambertMaterial({color:0xfff3cf,emissive:0xffca7a,emissiveIntensity:.9}));lamp.position.set(30.6,1.05,103.2);scene.add(lamp);box('dorm sample room wardrobe',36.4,1,107.3,.7,2,1.1,0x7a5a3a,true);box('dorm sample room rug',33.5,-.2,105,2.4,.06,2,0xc0684f);
+  box('dorm canopy',43,3.3,100.6,4.4,.14,2.6,0x8a94a0);for(const x of [41.3,44.7]){box('dorm canopy post',x,1.65,99.6,.09,3.3,.09,0x6e7a84);colliders.push({bounds:{minX:x-.14,maxX:x+.14,minZ:99.46,maxZ:99.74}});}
+  // 宿舍 2/3 号楼简易门厅（隔墙、地板、宿管桌、沙发、公告栏、暖光）。
+  box('dorm2 lobby partition',73,2.4,108,26,4.8,.3,0xc4b294,true); box('dorm2 lobby floor',73,-.24,105,25,.25,5.5,0xd9c9a3); box('dorm2 reception desk',63,.38,105,2.4,.76,.8,0x8a6a48,true); box('dorm2 lobby sofa',82,.28,104.5,1.9,.56,.85,0x7a9e7e,true); const dorm2Board=makeSign('公告栏',1.9,1.05,'#37474f','#ffffff'); dorm2Board.position.set(78,2,107.8); dorm2Board.rotation.y=Math.PI; scene.add(dorm2Board); const dorm2Light=new THREE.PointLight(0xffe6bb,22,26); dorm2Light.position.set(73,3,105); scene.add(dorm2Light);
+  box('dorm3 lobby partition',96,2.4,108,16,4.8,.3,0xc4b294,true); box('dorm3 lobby floor',96,-.24,105,15,.25,5.5,0xd9c9a3); box('dorm3 reception desk',90,.38,105,2.4,.76,.8,0x8a6a48,true); box('dorm3 lobby sofa',101,.28,104.5,1.9,.56,.85,0x7a9e7e,true); const dorm3Board=makeSign('公告栏',1.9,1.05,'#37474f','#ffffff'); dorm3Board.position.set(99,2,107.8); dorm3Board.rotation.y=Math.PI; scene.add(dorm3Board); const dorm3Light=new THREE.PointLight(0xffe6bb,22,26); dorm3Light.position.set(96,3,105); scene.add(dorm3Light);
+  dormShell('dorm2',73,102,26,73,[63,66,69,77,80,83]);dormShell('dorm3',96,102,16,96,[90.5,93,99.5,102]);
+
+  // 体育馆与室内球场。
+  const gymWall=0xc7d3da;
+  box('gym north wall west',-26.85,5,94,14.3,10,.35,gymWall,true); box('gym north wall east',-11.15,5,94,14.3,10,.35,gymWall,true);
+  box('gym north door lintel',-19,6.5,94,2.6,7,.35,gymWall);
+  box('gym south wall',-19,5,118,30,10,.35,gymWall,true); box('gym west wall',-34,5,106,.35,10,24,gymWall,true); box('gym east wall',-4,5,106,.35,10,24,gymWall,true);
+  box('gym blue belt',-19,3.4,106,30.3,.8,24.3,0x4d7ab0);
+  doors.push(makeDoor('体育馆门',94,-20.3,1));
+  box('gym roof 1',-19,10.2,106,31,.4,25,0x7a94a8); box('gym roof 2',-19,10.65,106,27,.5,21,0x87a2b5); box('gym roof 3',-19,11.1,106,22,.4,16,0x94b0c2);
+  box('gym north clerestory',-19,7.8,93.78,24,1.6,.08,0x8fb2c9); box('gym south clerestory',-19,7.8,118.22,24,1.6,.08,0x8fb2c9);
+  const gymSign=makeSign('体育馆',4,1.1,'#31536e','#ffffff'); gymSign.position.set(-19,5.6,93.68); gymSign.rotation.y=Math.PI; scene.add(gymSign);
+  box('gym path floor',-19,-.25,90,4,.25,8,0xe6dcc2); box('gym court floor',-19,-.24,106,24,.25,18,0xc98d4e);
+  for(const [x,z,sx,sz] of [[-19,99,20,.12],[-19,113,20,.12],[-29,106,.12,14],[-9,106,.12,14],[-19,106,.12,14]]) box('gym court line',x,-.1,z,sx,.03,sz,0xf5f2ea);
+  const gymCenterRing=new THREE.Mesh(new THREE.RingGeometry(1.7,1.9,28),mat(0xf5f2ea)); gymCenterRing.name='gym center circle'; gymCenterRing.rotation.x=-Math.PI/2; gymCenterRing.position.set(-19,-.1,106); scene.add(gymCenterRing);
+  for(const [x,dir] of [[-29.5,1],[-8.5,-1]]) { box('gym hoop pole',x,1.7,106,.2,3.4,.2,0x4a5560,true); box('gym backboard',x-dir*.55,2.9,106,.08,1.05,1.45,0xe8e4da); const rim=new THREE.Mesh(new THREE.TorusGeometry(.24,.03,8,20),mat(0xd95f29)); rim.name='gym hoop rim'; rim.rotation.x=Math.PI/2; rim.position.set(x-dir*.8,2.62,106); scene.add(rim); }
+  box('gym bench',-19,.23,115.5,10,.46,.5,0x7a9e7e,true); box('gym bench',-19,.23,114.2,10,.46,.5,0x7a9e7e,true);
+  for(const x of [-26,-12]) { const gymLight=new THREE.PointLight(0xfff2dd,34,48); gymLight.position.set(x,6,106); scene.add(gymLight); }
+
+  // 西侧湖泊、跨湖小桥与凉亭。
+  box('lake water',-50,-.16,112,24,.18,16,0x6fb7d9);
+  for(const [name,x,y,z,sx,sy,sz] of [['lake south bank',-50,.02,103.7,25,.3,.7],['lake north bank',-50,.02,120.3,25,.3,.7],['lake west bank',-62.3,.02,112,.7,.3,16.6],['lake east bank',-37.7,.02,112,.7,.3,16.6]]) box(name,x,y,z,sx,sy,sz,0xcac2b2);
+  for(const [z,y] of [[106,.16],[112,.42],[118,.16]]) box('lake bridge deck',-50,y,z,2.4,.16,6,0xa8895e);
+  for(const [x,z,y] of [[-51.15,106,.5],[-48.85,106,.5],[-51.15,112,.76],[-48.85,112,.76],[-51.15,118,.5],[-48.85,118,.5]]) box('lake bridge rail',x,y,z,.08,.45,6,0x8a6a48);
+  box('gazebo base',-39.5,.0,100.6,3,.14,3,0xcac2b2);
+  for(const dx of [-1.15,1.15]) for(const dz of [-1.15,1.15]) { const p=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,2.4),mat(0xb9b3a8));p.position.set(-39.5+dx,1.2,100.6+dz);scene.add(p);colliders.push({bounds:{minX:-39.5+dx-.15,maxX:-39.5+dx+.15,minZ:100.6+dz-.15,maxZ:100.6+dz+.15}}); }
+  const gazeboRoof=new THREE.Mesh(new THREE.CylinderGeometry(.15,2.5,1.15,4),mat(0x8e4a32));gazeboRoof.position.set(-39.5,3,100.6);gazeboRoof.rotation.y=Math.PI/4;scene.add(gazeboRoof);
+  box('gazebo bench',-39.5,.23,99.7,1.9,.45,.42,0x8a6a48,true);
+  box('lake south path floor',-50,-.25,101.5,25,.25,3,0xe6dcc2); box('lake west path floor',-64,-.25,112,3,.25,19,0xe6dcc2);
+  tree(-67,108); tree(-44,122.5); tree(76,90); tree(92,90); tree(36,97); tree(66,97); tree(92,97); tree(-8,90); tree(-30,90); tree(-64,28); tree(-64,40);
+
+  // 西侧操场：原场地镜像并向南平移。
+  const fieldBox=(name,x,y,z,sx,sy,sz,color,solid=false)=>box(name,-x,y,z+21,sx,sy,sz,color,solid);
+  const fieldSign=(label,w,h,bg,fg,x,y,z,rot=0)=>addSign(label,w,h,bg,fg,-x,y,z+21,rot);
+  fieldBox('field floor',55,-.27,49,66,.24,48,0x69a852);
+  fieldBox('track floor',55,-.245,35,28,.25,5,0xc0533f); fieldBox('track floor',55,-.245,63,28,.25,5,0xc0533f);
+  for (const [x,start] of [[41,-Math.PI/2],[69,Math.PI/2]]) { const bend=new THREE.Mesh(new THREE.RingGeometry(11.5,16.5,24,1,start,Math.PI),mat(0xc0533f));bend.name='track floor';bend.rotation.x=-Math.PI/2;bend.position.set(-(x),-.12,(49)+21);scene.add(bend); }
+  for (const z of [33.75,35,36.25,61.75,63,64.25]) fieldBox('track lane marking',55,-.102,z,28,.012,.09,0xf5f2e8);
+  fieldBox('football center line',55,-.141,49,.09,.012,23,0xf5f2e8);
+  const centerRing=new THREE.Mesh(new THREE.RingGeometry(3.9,4.1,32),mat(0xf5f2e8));centerRing.name='football center ring';centerRing.rotation.x=-Math.PI/2;centerRing.position.set(-(55),-.12,(49)+21);scene.add(centerRing);
+  for (const x of [44,66]) { fieldBox('football box line',x,-.141,49,.09,.012,12,0xf5f2e8); for(const z of [43,55]) fieldBox('football box line',x+(x===44?4:-4),-.141,z,8,.012,.09,0xf5f2e8); fieldBox('football box end line',x+(x===44?8:-8),-.141,49,.09,.012,12,0xf5f2e8); }
+  for (const [x,dir] of [[43.5,1],[66.5,-1]]) { for(const z of [47.2,50.8]) { const post=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,2.2,10),mat(0xffffff));post.name='football goal post';post.position.set(-(x),1.1,(z)+21);scene.add(post);colliders.push({bounds:{minX:-x-.15,maxX:-x+.15,minZ:z+21-.15,maxZ:z+21+.15}}); } fieldBox('football goal crossbar',x,2.2,49,.08,.08,3.7,0xffffff); const net=new THREE.Mesh(new THREE.BoxGeometry(.04,1.8,3.4),new THREE.MeshLambertMaterial({color:0xbfc7ca,transparent:true,opacity:.35}));net.name='football goal net';net.position.set(-(x+dir*.9),.9,(49)+21);scene.add(net); }
+  fieldBox('court floor',55,-.235,58,15,.25,11,0x3f7f8c);
+  for(const [x,z,sx,sz] of [[55,52.5,15,.09],[55,63.5,15,.09],[47.5,58,.09,11],[62.5,58,.09,11]]) fieldBox('court line',x,-.104,z,sx,.012,sz,0xf5f2e8);
+  fieldBox('court center line',55,-.104,58,.09,.012,11,0xf5f2e8);
+  fieldBox('court hoop pole',48.6,2.15,58,.22,4.3,.22,0x59636b,true); fieldBox('court hoop backboard',48.05,3.65,58,.16,1.25,2.2,0xf5f1df,true); fieldBox('court hoop rim',47.65,3.08,58,.16,.12,1.05,0xd7472f,true);
+  for(let i=0;i<4;i++){const x=89.75+i*1.5,h=.55*(i+1);fieldBox('grandstand step',x,h/2-.15,49,1.5,h,22,0xcac2b2);fieldBox('grandstand seat stripe',x,h-.12,49,1.1,.06,22,0x4d7ab0);colliders.push({bounds:{minX:-x-.75,maxX:-x+.75,minZ:59,maxZ:81}});} fieldBox('grandstand rear wall',95.4,1.6,49,.35,3.5,22.5,0xb9b3a8,true);
+  for (const [name,x,z,sx,sz] of [['east hedge south',22,35.25,.35,20.5],['east hedge north',22,62.75,.35,20.5],['east hedge west',55,25,66,.35],['east hedge east',88,49,.35,48],['east hedge north edge west',37,73,24,.35],['east hedge north edge middle',67.5,73,17,.35],['east hedge north edge east',91.5,73,13,.35]]) fieldBox(name,x,.45,z,sx,.9,sz,0x3d7040,true);
+  fieldBox('east path floor',20,-.25,49,4,.25,7,0xe6dcc2);
+  fieldBox('east field sign post',22.8,1.1,44.6,.12,2.2,.12,0x6e6a61,true); fieldSign('操场',2.2,.8,'#3d5a73','#ffffff',22.8,2.2,44.6,-Math.PI/2);
+  fieldBox('plaza east sign post',17.2,1.1,49,.12,2.2,.12,0x6e6a61,true); fieldSign('← 操场 · 实验楼',2,.7,'#2e5e4e','#ffffff',17.2,2,49.1); fieldSign('← 操场 · 实验楼',2,.7,'#2e5e4e','#ffffff',17.2,2,48.9,Math.PI);
+  for(const [z,label] of [[37.5,'食堂 · 图书馆 →'],[55,'宿舍 · 校医院 →']]) { fieldBox('plaza west sign post',-17.2,1.1,z,.12,2.2,.12,0x6e6a61,true); fieldSign(label,2,.7,'#2e5e4e','#ffffff',-17.2,2,z+.1); fieldSign(label,2,.7,'#2e5e4e','#ffffff',-17.2,2,z-.1,Math.PI); }
+  // 天空中的几何云朵。
+  for (const [cx,cy,cz] of [[-50,31,24],[-25,36,48],[0,29,76],[25,38,32],[48,33,92],[70,30,59],[5,39,106]]) for(let i=0;i<3;i++){const cloud=new THREE.Mesh(new THREE.SphereGeometry(1,12,8),new THREE.MeshBasicMaterial({color:0xffffff,fog:false}));cloud.name='cloud';cloud.scale.set(3.2+(i%2)*.7,.55+(i%2)*.12,1.45);cloud.position.set(cx+(i-1)*2.1,cy+(i===1?.4:0),cz+(i%2)*.5);scene.add(cloud);}
+  // 严老师只沿教室中央过道与走廊中线巡逻，不参与玩家碰撞。
+  const teacher = { id:'yan_teacher', group:new THREE.Group(), facing:0, waypoint:0, returnStep:0, lastLines:{} };
+  const teacherBody = new THREE.Mesh(new THREE.BoxGeometry(.62, 1.05, .34), mat(0x263747)); teacherBody.position.y = 1.28; teacher.group.add(teacherBody);
+  const teacherHead = new THREE.Mesh(new THREE.SphereGeometry(.24, 16, 12), mat(0xd6a982)); teacherHead.position.set(0, 2.02, 0); teacher.group.add(teacherHead);
+  const teacherHair = new THREE.Mesh(new THREE.SphereGeometry(.245, 16, 8, 0, Math.PI * 2, 0, Math.PI * .48), mat(0x9b9da0)); teacherHair.position.set(0, 2.09, 0); teacher.group.add(teacherHair);
+  for (const x of [-.18, .18]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(.2, .7, .24), mat(0x202b35)); leg.position.set(x, .48, 0); teacher.group.add(leg); }
+  teacher.group.position.set(0, 0, -5.3); scene.add(teacher.group);
+  const teacherWaypoints = [[0,-5.3],[0,7.6],[0,10.6],[5.5,16],[-5.5,16],[0,10.6],[0,7.6],[0,-7.6],[0,-10.6],[0,-16],[0,-10.6],[0,-7.6]];
+  const counselor = { id:'zhou_counselor', group:new THREE.Group(), facing:0, waypoint:0, lastLines:{}, area:'front', periodKey:'' };
+  const cBody = new THREE.Mesh(new THREE.BoxGeometry(.62,1.05,.34),mat(0xdfe8ee)); cBody.position.y=1.28; counselor.group.add(cBody);
+  const cHead = new THREE.Mesh(new THREE.SphereGeometry(.24,16,12),mat(0xd6a982)); cHead.position.y=2.02; counselor.group.add(cHead);
+  const cHair = new THREE.Mesh(new THREE.BoxGeometry(.18,.42,.2),mat(0x382c2b)); cHair.position.set(0,1.95,-.24); counselor.group.add(cHair);
+  for(const x of [-.18,.18]) { const leg=new THREE.Mesh(new THREE.BoxGeometry(.2,.7,.24),mat(0x2e3440)); leg.position.set(x,.48,0); counselor.group.add(leg); }
+  counselor.group.position.set(0,0,-10.6); scene.add(counselor.group);
+  // 周老师分别巡逻两段走廊；拐点仍在前/后走廊内，不穿越教室。
+  const counselorWaypoints=[[0,-10.6],[-7,-10.6],[-7,-21],[7,-21],[7,-10.6],[0,-10.6]];
+  const counselorBackWaypoints=[[0,10.6],[7,10.6],[7,19],[-7,19],[-7,10.6],[0,10.6]];
+  const admin = { id:'admin',group:new THREE.Group(),lastLines:{} };
+  const aBody=new THREE.Mesh(new THREE.BoxGeometry(.72,1.3,.42),mat(0x1d1a2e)); aBody.position.y=1.15; admin.group.add(aBody);
+  const aHead=new THREE.Mesh(new THREE.SphereGeometry(.24,16,12),mat(0x171522)); aHead.position.y=2.03; admin.group.add(aHead);
+  const hood=new THREE.Mesh(new THREE.BoxGeometry(.62,.38,.58),mat(0x29243b)); hood.position.set(0,2.2,0); admin.group.add(hood);
+  admin.group.position.set(-8.2,0,-21.8); admin.group.rotation.y=Math.PI/2; scene.add(admin.group);
+  for (const group of [teacher.group, counselor.group, admin.group]) group.traverse(o => { if (o.isMesh && o.material && o.material.isMeshLambertMaterial) { o.material = o.material.clone(); o.material.emissive = o.material.color.clone().multiplyScalar(0.22); } });
+  // 门未解锁时以暗色裂缝占位，触发靠近提示。
+  const portal = new THREE.Group(); portal.position.set(-9.72,1.7,15); portal.rotation.y=Math.PI/2; scene.add(portal);
+  const portalFrame=new THREE.Mesh(new THREE.BoxGeometry(1.7,3.3,.2),new THREE.MeshBasicMaterial({color:0x8a6cff})); portal.add(portalFrame);
+  const portalFace=new THREE.Mesh(new THREE.PlaneGeometry(1.35,2.95),new THREE.MeshBasicMaterial({color:0x8a6cff,transparent:true,opacity:.38,side:THREE.DoubleSide})); portalFace.position.z=.12; portal.add(portalFace);
+  const crack=new THREE.Mesh(new THREE.BoxGeometry(1.3,2.8,.08),mat(0x343243)); crack.position.copy(portal.position); crack.position.x=-9.83; crack.rotation.y=Math.PI/2; scene.add(crack);
+  const strange = new THREE.Group(); scene.add(strange);
+  const strangeMat=color=>new THREE.MeshLambertMaterial({color,emissive:color,emissiveIntensity:.22});
+  const spBox=(x,y,z,sx,sy,sz,color)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),strangeMat(color));m.position.set(x,y,z);strange.add(m);return m;};
+  spBox(120,5,0,20,.25,18,0x403d75); // 倒置教室天花板地面
+  spBox(120,1,0,20,.25,18,0x25243f);
+  spBox(120,2.5,-8.7,7.2,2.2,.16,0x303d78);
+  const strangeDesks=[];
+  for(let i=0;i<3;i++){const desk=spBox(116+i*4.2,3.15,-2+i*3,2.1,.16,1,0x6e61a9);spBox(116+i*4.2,3.65,-2+i*3,.12,.8,.12,0x4c4781);strangeDesks.push({mesh:desk,y:3.15,phase:i*1.7});}
+  const spaceLight=new THREE.PointLight(0x8877ff,28,28); spaceLight.position.set(120,1,0); strange.add(spaceLight);
+  const entryPad=spBox(120,.08,7,2,.15,1,0x8a6cff), exitPad=spBox(120,.08,5,1.4,2,.18,0x70ffcf);
+  const relic=new THREE.Mesh(new THREE.BoxGeometry(.45,.45,.45),new THREE.MeshBasicMaterial({color:0xffd76a})); strange.add(relic); relic.visible=false;
+  // 本轮新增校园服务区与公共建筑；所有室内家具和隔墙纳入现有 2D 碰撞。
+  const interiorLight = (color, intensity, distance, x, y, z) => { const l = new THREE.PointLight(color, intensity, distance); l.position.set(x,y,z); scene.add(l); return l; };
+  const addedSign = (text,w,h,bg,fg,x,y,z,rot=0) => { const s=makeSign(text,w,h,bg,fg); s.position.set(x,y,z); s.rotation.y=rot; scene.add(s); return s; };
+  const addChair = (x,z,color=0x4d7ab0) => box('service chair',x,.45,z,.45,.9,.45,color,true);
+  // 行政楼
+  const aw=0xcfc8ba;
+  box('admin west wall south',28,7.5,32.35,.35,15,8.7,aw,true);box('admin west wall north',28,7.5,42.15,.35,15,5.7,aw,true);box('admin entrance lintel',28,9,38,.35,12,2.6,aw);box('admin east wall',50,7.5,36.5,.35,15,17,aw,true);box('admin north wall',39,7.5,28,22,15,.35,aw,true);box('admin south wall',39,7.5,45,22,15,.35,aw,true);box('admin office ceiling',39,15.1,36.5,22.5,.25,17.5,0xbdb5a4);
+  for(const y of [3.4,6.6,9.8,13])for(const x of [32,36,42,46])box('admin window',x,y,45.22,1.6,1.4,.08,0x5a6a76);doors.push(makeDoor('行政楼门',28,36.7,1,'x'));addedSign('行政楼',3.4,1,'#5c5340','#ffffff',27.4,4.6,38,-Math.PI/2);box('admin path floor',23,-.25,38,10,.25,3.5,0xe6dcc2);box('admin interior floor',39,-.24,36.5,21,.25,16,0xd9d2c2);
+  box('admin reception desk',31.5,.45,38,.8,.9,3.2,0x8a6a48,true);for(const x of [36,39.5,43,46.5]){box('admin workstation',x,.75,41,1.5,.7,.7,0xa8895e,true);addChair(x,39.8);box('admin computer',x,1.05,40.76,.5,.35,.06,0x33404a);}
+  box('admin work area divider',39,.6,39.2,13,1.2,.18,0xb8b0a0,true);box('counselor partition north',44,1.5,33,.22,3,5,0xe2dccb,true);box('counselor partition south',44,1.5,40.5,.22,3,5,0xe2dccb,true);box('counselor desk',47.5,.75,30.5,.8,.75,1.8,0x8a6a48,true);addChair(47.5,32.2);box('counselor filing cabinet',49.4,1,36,.6,2,1.2,0x7a8894,true);addedSign('辅导员办公室',1.9,.8,'#37474f','#ffffff',43.85,2.1,36.3,-Math.PI/2);
+  box('meeting partition north',36,1.5,33,.22,3,5,0xe2dccb,true);box('meeting partition south',36,1.5,40.5,.22,3,5,0xe2dccb,true);box('admin meeting table',32,.72,30.5,1.4,.75,3.6,0x6e5638,true);for(const [x,z] of [[30.8,29],[33.2,29],[30.8,32],[33.2,32],[32,28.5],[32,32.5]])addChair(x,z,0x657d91);interiorLight(0xfff1d6,24,30,39,3.4,36);
+
+  // 会堂
+  const hw=0xa85f4a;
+  box('hall south west wall',9.35,4.5,86,10.7,9,.35,hw,true); box('hall south east wall',22.65,4.5,86,10.7,9,.35,hw,true); box('hall entrance lintel',16,6,86,2.6,6,.35,hw);
+  box('hall north wall',16,4.5,107,24,9,.35,hw,true); box('hall west wall',4,4.5,96.5,.35,9,21,hw,true); box('hall east wall',28,4.5,96.5,.35,9,21,hw,true); box('hall roof',16,9.15,96.5,24.5,.3,21.5,0x8a4a38);
+  doors.push(makeDoor('会堂门',86,14.7,1)); addedSign('会堂',3.2,1.05,'#6e2f1e','#ffe9b0',16,5.2,85.7,Math.PI);
+  box('hall path floor',16,-.25,80,3.5,.25,12,0xe6dcc2); box('hall interior floor',16,-.24,96.5,23,.25,20,0xb09a80);
+  box('hall stage',16,.3,103,20,.6,6.5,0x7a4a30,true); box('hall backdrop',16,3,106.2,19,6,.25,0x8e2432); box('hall curtain west',6.8,3,103,.25,6,6,0x8e2432); box('hall curtain east',25.2,3,103,.25,6,6,0x8e2432);
+  addedSign('表彰大会',3.4,.8,'#8e2432','#ffe9b0',16,5.6,99.6);
+  for(const z of [90,92,94,96,98]) for(let i=0;i<14;i++) if(i!==7) box('hall auditorium seat',8+i*1.05,.45,z,.5,.9,.5,0x9e3d34,true);
+  interiorLight(0xffe2b0,30,36,16,5,96);
+
+  // 大学生活动中心
+  const actw=0xd9a45e;box('activity west wall south',30,5,53.35,.35,10,6.7,actw,true);box('activity west wall north',30,5,62.65,.35,10,6.7,actw,true);box('activity entrance lintel',30,6.5,58,.35,7,2.6,actw);box('activity east wall',46,5,58,.35,10,16,actw,true);box('activity north wall',38,5,50,16,10,.35,actw,true);box('activity south wall',38,5,66,16,10,.35,actw,true);box('activity ceiling',38,10.1,58,16.5,.25,16.5,0xc2924e);doors.push(makeDoor('活动中心门',30,56.7,1,'x'));addedSign('大学生活动中心',4.6,1,'#7a4416','#ffffff',29.4,5.4,58,-Math.PI/2);box('activity path floor',24,-.25,58,12,.25,3.5,0xe6dcc2);box('activity interior floor',38,-.24,58,15,.25,15,0xe3cf9f);addedSign('社团公告栏',2.2,1.1,'#37474f','#ffecb3',38,2,50.25);
+  for(const z of [54,60]){box('activity ping pong table',41,.75,z,2.2,.75,1.2,0x2e5f8a,true);box('activity ping pong table edge',41,.79,z,2.24,.04,1.24,0xf5f2ea);}box('activity club partition west',33,1.5,62,6,3,.22,0xead9b8,true);box('activity club partition east',42.5,1.5,62,7,3,.22,0xead9b8,true);box('activity club table',41,.72,64,1.6,.75,1.6,0xa8895e,true);for(const [x,z] of [[39.5,64],[42.5,64],[41,62.5],[41,65.5]])addChair(x,z,0x8a6a48);addedSign('社团活动室',1.8,.8,'#7a4416','#ffffff',37.3,2.1,61.85,Math.PI);box('activity lockers',45.4,1,54,.6,2,3.4,0x7a8894,true);interiorLight(0xffe9c4,22,26,38,3.2,58);
+
+  // 校医院（东侧新址）
+  const cw=0xf0f2ee;
+  box('clinic south west wall',62.35,3.5,100,8.7,7,.35,cw,true); box('clinic south east wall',73.65,3.5,100,8.7,7,.35,cw,true); box('clinic entrance lintel',68,5,100,2.6,4,.35,cw);
+  box('clinic north wall',68,3.5,86,20,7,.35,cw,true); box('clinic west wall',58,3.5,93,.35,7,14,cw,true); box('clinic east wall',78,3.5,93,.35,7,14,cw,true); box('clinic ceiling',68,7.1,93,20.5,.25,14.5,0xdfe5e0);
+  doors.push(makeDoor('校医院门',100,66.7,1)); box('clinic cross vertical',68,5.6,100.24,.28,1,.1,0xd93a2e); box('clinic cross horizontal',68,5.6,100.24,1,.28,.1,0xd93a2e);
+  const clinicSign=makeSign('校医院',2.8,.95,'#2e6e4e','#ffffff'); clinicSign.position.set(73.5,5.6,100.28); scene.add(clinicSign); box('clinic path floor',68,-.25,83,3.5,.25,6,0xe6dcc2); box('clinic interior floor',68,-.24,93,19,.25,13,0xdce8e2);
+  box('clinic reception',68,.5,89,3,1,.7,0x9db8a8,true); const clinicReg=makeSign('挂号处',1.3,.6,'#2e6e4e','#ffffff'); clinicReg.position.set(68,1.7,88.6); clinicReg.rotation.y=Math.PI; scene.add(clinicReg);
+  for(const z of [90,91.2,92.4,93.6]) box('clinic waiting chair',62,.45,z,.5,.9,.5,0x7a9e7e,true);
+  box('clinic exam partition north',72,1.5,88.2,.22,3,4.4,0xe8efe9,true); box('clinic exam partition south',72,1.5,96.4,.22,3,7.2,0xe8efe9,true);
+  box('clinic desk',75,.75,89,1.6,.75,.8,0xa8895e,true); addChair(76.2,89);
+  for(const z of [95,98]) { box('clinic bed frame',75,.5,z,1,.5,2.2,0xdde3e6,true); box('clinic pillow',75,.62,z-.75,.6,.15,.4,0xffffff); box('clinic blanket',75,.6,z+.25,.95,.12,1.3,0x8fc7a8); }
+  box('clinic medicine cabinet',77.4,1.1,93,.55,2.2,5,0xb9c9be,true); box('clinic medicine grid',77.05,1.8,93,.05,1.8,4.6,0x6fae8f); interiorLight(0xf2fbf4,22,26,68,3.2,93);
+
+  // 校园超市（北侧新址）
+  const mw=0x9aa3ab;
+  box('market west wall south',52,2.75,72.5,.35,5.5,5,mw,true); box('market west wall north',52,2.75,81.5,.35,5.5,5,mw,true); box('market window lintel',52,4.2,77,.35,2.6,6,mw);
+  box('market east wall',68,2.75,77,.35,5.5,14,mw,true); box('market north wall',60,2.75,70,16,5.5,.35,mw,true); box('market south wall',60,2.75,84,16,5.5,.35,mw,true); box('market ceiling',60,5.6,77,16.5,.25,14.5,0x87909a);
+  const shopGlass=new THREE.MeshLambertMaterial({color:0xa8c8dd,transparent:true,opacity:.55});
+  for(const z of [73.8,80.2]) { const g=new THREE.Mesh(new THREE.BoxGeometry(.08,2.6,2.2),shopGlass); g.name='market glass'; g.position.set(51.78,1.7,z); scene.add(g); }
+  doors.push(makeDoor('超市门',52,75.7,1,'x')); const marketSign=makeSign('校园超市',4.2,1.05,'#1f5fa8','#ffffff'); marketSign.position.set(51.3,4.9,77); marketSign.rotation.y=-Math.PI/2; scene.add(marketSign);
+  box('market interior floor',60,-.24,77,15,.25,13,0xd8dde2);
+  for(let i=0;i<3;i++) { const x=[56,60,64][i]; box('market shelf',x,.85,77,.8,1.7,9,0x8a939c,true); for(const y of [.55,1.05,1.55]) box('market merchandise',x,y,77,.86,.34,8.6,[0xd95f29,0x53a06a,0x3f6fb5][i]); const tag=makeSign(['零食','饮料','日用品'][i],1,.5,'#37474f','#ffecb3'); tag.position.set(x,2,72.2); tag.rotation.y=Math.PI; scene.add(tag); }
+  box('market checkout',54.5,.5,81.5,.8,1,2.6,0x5b7a99,true); box('market cooler',67.4,1,77,.7,2,6,0xbcd2e2,true); interiorLight(0xffffff,24,28,60,3.4,77);
+
+  // 快递驿站（东侧新址）
+  const qw=0xdfe7ee;
+  box('courier west wall south',82,2.25,91.35,.35,4.5,6.7,qw,true); box('courier west wall north',82,2.25,98.65,.35,4.5,2.7,qw,true); box('courier entrance lintel',82,3.6,96,.35,1.8,2.6,qw);
+  box('courier east wall',96,2.25,94,.35,4.5,12,qw,true); box('courier north wall',89,2.25,88,14,4.5,.35,qw,true); box('courier south wall',89,2.25,100,14,4.5,.35,qw,true); box('courier ceiling',89,4.6,94,14.5,.25,12.5,0xc4d2de); box('courier blue band',89,3.1,94,14.3,.6,12.3,0x2e7cd6);
+  doors.push(makeDoor('驿站门',82,94.7,1,'x')); const courierSign=makeSign('快递驿站',3.6,.95,'#1453a8','#ffffff'); courierSign.position.set(81.3,4,96); courierSign.rotation.y=-Math.PI/2; scene.add(courierSign);
+  box('courier path floor',78,-.25,96,8,.25,3,0xe6dcc2); box('courier interior floor',89,-.24,94,13,.25,11,0xd3dbe2);
+  for(const x of [85,89.5,94]) { box('courier parcel shelf',x,.95,92,.7,1.9,4.2,0x7a8894,true); for(let row=0;row<3;row++) for(let side of [-1,1]) box('courier parcel',x+side*.36,.5+row*.58,91.1+(row%2)*1.2,.6,.38,.8,(row+side>1)?0xd97b29:0xb08954); }
+  box('courier pickup counter',84,.5,96,.8,1,4.4,0x2e7cd6,true); box('courier packing table',93,.45,98.5,3,.9,.7,0x8a939c,true); interiorLight(0xf4f9ff,18,22,89,3,94);
+
+  // 南侧七间校园便民店及 ATM
+  const serviceNames=['浴室','开水房','打印文具','理发店','药店','书店','咖啡吧'];
+  const serviceColors=['#42616b','#b5522c','#455c7a','#8e2432','#2e9e5b','#6e7238','#5e4232'];
+  box('service north wall', 39, 2.1, 78, 26, 4.2, .35, 0xb59a78, true); box('service west wall', 26, 2.1, 74, .35, 4.2, 8, 0xb59a78, true); box('service east wall', 51.4, 2.1, 74, .35, 4.2, 8, 0xb59a78, true);
+  for(let i=0;i<7;i++) { const left=26+i*3.7, cx=left+1.85; addedSign(serviceNames[i], 2.2, .7, serviceColors[i], '#ffffff', cx, 3.1, 69.68, Math.PI); doors.push(makeDoor(`${serviceNames[i]}门`, 70, left+.55, 1)); }
+  for(let k=1;k<7;k++) box('service south wall pier', 26+3.7*k, 2.1, 70, 1.1, 4.2, .35, 0xb59a78, true);
+  box('service south wall pier west', 26.25, 2.1, 70, .5, 4.2, .35, 0xb59a78, true); box('service south wall pier east', 51.7, 2.1, 70, .6, 4.2, .35, 0xb59a78, true);
+  box('service south lintel', 39, 3.6, 70, 26, 1.2, .35, 0xb59a78); box('service roof', 39, 4.35, 74, 26.5, .3, 8.5, 0x9a8266); box('service interior floor', 39, -.24, 74, 25, .25, 7, 0xd9cbb2);
+  for(const x of [29.7,33.4,37.1,40.8,44.5,48.2]) box('service shop partition', x, 1.5, 74, .2, 3, 8, 0xb59a78, true);
+  // 浴室
+  for(const x of [26.6,27.8,29]) { box('bathroom stall divider', x, 1.1, 76.3, .08, 1.6, 1.1, 0x9db8c4); box('bathroom toilet', x-.45, .4, 76.3, .4, .4, .5, 0xf2f2f2, true); box('bathroom shower control', x-.45, 1.9, 74.8, .12, .12, .06, 0xc0ccd4); }
+  // 开水房
+  box('boiling water counter', 31.55, .85, 76.7, 2.8, .85, .6, 0x9aa3ab, true); for(const x of [30.6,31.2,31.8,32.4]) box('water tap', x, 1.38, 76.45, .09, .25, .09, 0x5a6a76);
+  box('water heater', 32.9, .8, 72, .8, 1.6, .5, 0xd95f29, true);
+  // 打印文具
+  box('print shop counter', 35.25, .5, 71.5, 2.6, 1, .7, 0x7a8894, true); for(const x of [34.6,35.9]) { box('printer', x, 1.25, 73, .7, .45, .55, 0xd8dde2, true); box('paper stack', x, 1.52, 73, .45, .25, .35, 0xffffff); }
+  // 理发店
+  for(const x of [38,39.8]) { box('barber chair', x, .55, 73.6, .55, 1.1, .55, 0x8e2432, true); box('barber mirror', x, 1.5, 77.72, .9, 1.1, .06, 0xbcd9ea); }
+  box('barber cabinet', 38.9, .4, 76.2, 1.4, .8, .4, 0x6e5638, true);
+  // 药店
+  for(const z of [72.5,75]) { box('pharmacy shelf', 42.65, .9, z, .7, 1.8, 2.2, 0xdde3e6, true); for(const y of [.55,1.05,1.55]) box('pharmacy products', 43.04, y, z, .05, .18, 2, [0xffffff, 0x53a06a, 0x3f6fb5][Math.floor(y*2)%3]); }
+  box('pharmacy counter', 42.65, .5, 71.8, 1.8, 1, .6, 0x9db8a8, true); addedSign('药', .6, .6, '#2e9e5b', '#ffffff', 42.65, 2, 77.72);
+  // 书店
+  for(const z of [72.5,75]) { box('bookshop shelf', 46.35, 1, z, .6, 2, 2.4, 0x7a5a3a, true); box('book spines', 46.7, 1, z, .05, 1.6, 2.2, 0xc0533f); }
+  box('bookshop table', 47.8, .35, 73, 1, .7, 1, 0xa8895e, true);
+  // 咖啡吧
+  box('cafe counter', 50.1, .55, 76.7, 2.4, 1.05, .6, 0x5e4232, true); for(const x of [49.2,51]) box('cafe table', x, .36, 72.5, .7, .72, .7, 0x8a6a48, true); interiorLight(0xffd9a0,10,10,50.1,2.6,74);
+  box('service path floor', 42, -.25, 68.5, 32, .25, 3, 0xe6dcc2);
+  box('ATM machine', 25.35, .75, 74, .9, 1.5, .35, 0x2e7cd6, true); addedSign('ATM', 1, .55, '#1453a8', '#ffffff', 24.8, 1.9, 74, -Math.PI/2);
+
+  // 后勤服务中心，西侧开门
+  const lw=0x9aa88f;
+  box('logistics east south wall',-84,3,115.3,.35,6,6.6,lw,true); box('logistics east north wall',-84,3,122.3,.35,6,3.4,lw,true); box('logistics entrance lintel',-84,4.8,119.9,.35,2.4,2.6,lw);
+  box('logistics west wall',-98,3,118,.35,6,12,lw,true); box('logistics south wall',-91,3,112,14,6,.35,lw,true); box('logistics north wall',-91,3,124,14,6,.35,lw,true); box('logistics ceiling',-91,6.1,118,14.5,.25,12.5,0x87937c);
+  doors.push(makeDoor('后勤门',-84,118.6,1,'x')); addedSign('后勤服务中心',3.2,.9,'#42563c','#ffffff',-83.4,4.2,119.9,Math.PI/2);
+  box('logistics path floor',-80,-.25,119.9,8,.25,3,0xe0d3ae); box('logistics interior floor',-91,-.24,118,13,.25,11,0xc9cfc0);
+  box('logistics office desk',-88,.75,114,1.7,.75,.8,0x8a6a48,true); addChair(-89.2,114);
+  for(const z of [115,120.5]) { box('logistics warehouse shelf',-97.4,1,z,.7,2,3.6,0x7a8894,true); for(const y of [.55,1.15,1.75]) box('logistics cartons',-97.08,y,z,.08,.32,3.2,0xb08954); }
+  box('logistics tool cabinet',-94,1,123.4,2.4,2,.6,0xb08954,true); interiorLight(0xf6ffec,16,20,-91,3,118);
+
+  // 南校门、校外道路与公交站。
+  box('south gate pillar west',-6.8,2.75,125,1.1,5.5,1.1,0x8a8378,true); box('south gate pillar east',6.8,2.75,125,1.1,5.5,1.1,0x8a8378,true);
+  box('south gate beam',0,5.6,125,14.6,1,1.3,0x6e685e); const southGateSign=makeSign('青岛城市学院',5.5,1,'#37424e','#f5d98a'); southGateSign.position.set(0,5.6,124.28); southGateSign.rotation.y=Math.PI; scene.add(southGateSign);
+  box('campus name stone',-12.5,.85,120.5,5,1.7,1.1,0x9a958a,true); const campusNameStoneSign=makeSign('青岛城市学院',4.4,1.1,'#5a5348','#ffd98a'); campusNameStoneSign.position.set(-12.5,.95,119.9); campusNameStoneSign.rotation.y=Math.PI; scene.add(campusNameStoneSign);
+  box('guard south wall',11.5,1.5,120,4,3,.3,0xd8d4cc,true); box('guard north wall',11.5,1.5,124,4,3,.3,0xd8d4cc,true); box('guard west wall',9.5,1.5,122,.3,3,4,0xd8d4cc,true); box('guard east wall',13.5,1.5,122,.3,3,4,0xd8d4cc,true);
+  box('guard window band',11.5,1.95,119.8,3.4,1,.08,0x8fb2c9); box('guard roof',11.5,3.12,122,4.5,.24,4.5,0x8a8378); const guardSign=makeSign('门卫室',1.6,.65,'#37424e','#ffffff'); guardSign.position.set(11.5,2.9,119.78); guardSign.rotation.y=Math.PI; scene.add(guardSign); box('guard desk',11.5,.4,123,1.4,.8,.6,0x8a6a48,true);
+  box('outside road floor',0,-.28,130,70,.2,10,0x555a60); for(const x of [-24,-12,0,12,24]) box('outside road marking',x,-.16,130,2.2,.02,.25,0xf5f2ea); box('outside road hedge',0,.55,135.5,70,1.1,.5,0x4e7a3a,true);
+  for(const x of [16.5,19.5]) { box('bus stop pillar',x,1.25,131.5,.09,2.5,.09,0x6e7a84); colliders.push({bounds:{minX:x-.14,maxX:x+.14,minZ:131.36,maxZ:131.64}}); }
+  box('bus stop canopy',18,2.55,131.5,4.2,.12,1.7,0x4d7ab0); box('bus stop bench',18,.45,132,3.2,.1,.45,0x8a6a48,true); const busStopSign=makeSign('公交站',1.5,.7,'#1f5fa8','#ffffff'); busStopSign.position.set(16.5,2.1,131.2); busStopSign.rotation.y=Math.PI; scene.add(busStopSign);
+  const entranceLampMat=new THREE.MeshLambertMaterial({color:0xfff3cf,emissive:0xffca7a,emissiveIntensity:.9});
+  for(const x of [-8.6,8.6]) { const pole=new THREE.Mesh(new THREE.CylinderGeometry(.06,.08,3.4),mat(0x3f4a52)); pole.name='gate lamp post'; pole.position.set(x,1.7,122); scene.add(pole); const globe=new THREE.Mesh(new THREE.SphereGeometry(.14),entranceLampMat); globe.name='gate lamp globe'; globe.position.set(x,3.5,122); scene.add(globe); colliders.push({bounds:{minX:x-.13,maxX:x+.13,minZ:121.87,maxZ:122.13}}); }
+  box('avenue floor',0,-.25,91.5,5,.25,67,0xe6dcc2); for(const [x,z] of [[4,64],[4,84],[-4,64],[-4,84]]) tree(x,z);
+  for(const [x,z] of [[-3.6,78],[3.6,78],[-3.6,104],[3.6,104]]) { const pole=new THREE.Mesh(new THREE.CylinderGeometry(.06,.08,3.4),mat(0x3f4a52)); pole.name='avenue lamp post'; pole.position.set(x,1.7,z); scene.add(pole); const globe=new THREE.Mesh(new THREE.SphereGeometry(.14),entranceLampMat); globe.name='avenue lamp globe'; globe.position.set(x,3.5,z); scene.add(globe); colliders.push({bounds:{minX:x-.13,maxX:x+.13,minZ:z-.13,maxZ:z+.13}}); }
+  // 校门东侧自行车棚。
+  for(const [x,z] of [[10.8,111],[25.2,111],[10.8,115],[25.2,115]]) { box('bike shed pillar',x,1.2,z,.12,2.4,.12,0x6e7a84); colliders.push({bounds:{minX:x-.15,maxX:x+.15,minZ:z-.15,maxZ:z+.15}}); }
+  box('bike shed roof',18,2.5,113,16.5,.14,6.5,0x7a94a8); const bikeColors=[0xd95f29,0x3f6fb5,0x53a06a,0xd9a441]; let bikeIndex=0; for(const z of [111.7,114.3]) for(const x of [13,16,19,22]) box('parked bicycle',x,.55,z,1.7,.55,.32,bikeColors[bikeIndex++%bikeColors.length],true);
+  // 北侧后山远景，仅作视觉装饰。
+  for(const [x,y,z,r,h] of [[-30,12.7,-48,16,26],[15,15.7,-58,20,32],[55,10.2,-44,13,21]]) { const hill=new THREE.Mesh(new THREE.CylinderGeometry(.1,r,h,7),mat(0x5d8a4a)); hill.name='hill ridge'; hill.position.set(x,y,z); scene.add(hill); }
+  for(const [x,y,z,r] of [[-39,10,-47,2.4],[-23,11,-49,2.8],[5,13,-56,2.5],[25,14,-59,2.7],[48,8,-45,2.3],[61,9,-43,2.6]]) { const blob=new THREE.Mesh(new THREE.SphereGeometry(r),mat(0x4e7a3a)); blob.name='hill tree blob'; blob.position.set(x,y,z); scene.add(blob); }
+  box('skyline swimming pool',-58,.3,-40,14,.6,8,0x4aa3d9); box('skyline swimming hall',-58,1.6,-45,15,3.2,2,0xdde5ea);
+  // 林荫大道中段指示牌。
+  const avenueSignPost=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,2.6),mat(0x6e7a84)); avenueSignPost.name='avenue sign post'; avenueSignPost.position.set(3.6,1.3,92); scene.add(avenueSignPost); colliders.push({bounds:{minX:3.48,maxX:3.72,minZ:91.88,maxZ:92.12}});
+  for(const [y,label] of [[2.3,'← 体育馆 · 人工湖'],[1.75,'会堂 · 宿舍 →'],[1.2,'↑ 校门']]) { const sign=makeSign(label,2.3,.55,'#37474f','#ffffff'); sign.position.set(3.6,y,92); sign.rotation.y=Math.PI; scene.add(sign); }
+  const FALLBACK_LINES = [
+    {line_id:'yan_caught_first',npc_id:'yan_teacher',scene:'CAUGHT',caughtIndex:0,text:'上课就是上课，这不是选修项。你今天缺席，我已经记下来了。'},
+    {line_id:'yan_caught_second',npc_id:'yan_teacher',scene:'CAUGHT',caughtIndex:1,text:'好，我记下来了。这是你第二次了，你给我记清楚：再有一次，我交教务处处理。'},
+    {line_id:'yan_caught_01',npc_id:'yan_teacher',scene:'CAUGHT',minCaught:2,maxCaught:3,text:'你上课时间在外面晃，你觉得这说得过去？我不想听解释，直接到教务处走一趟。'},
+    {line_id:'yan_caught_repeat',npc_id:'yan_teacher',scene:'CAUGHT',minCaught:2,maxCaught:3,text:'积分定理记得吗？每次选择都有代价，这是数学，也是人生。'},
+    {line_id:'yan_caught_final',npc_id:'yan_teacher',scene:'CAUGHT',caughtIndex:4,text:'你给我记清楚：这是第五次，留校察看。我直接交到教务处。'},
+    {line_id:'yan_patrol_01',npc_id:'yan_teacher',scene:'PATROL',text:'你，哪个班的？这个时间不在教室，在走廊干什么？'},
+    {line_id:'yan_patrol_02',npc_id:'yan_teacher',scene:'PATROL',text:'上课时间在走廊，你觉得这说得过去？回教室去。'},
+    {line_id:'yan_patrol_03',npc_id:'yan_teacher',scene:'PATROL',text:'积分定理记得吗？每次选择都有代价。现在，解释一下你为什么在这里。'},
+    {line_id:'yan_small_talk_01',npc_id:'yan_teacher',scene:'SMALL_TALK',text:'走廊上碰到你，上次那道题你想明白了吗？思路是对的，就是步骤还需要严谨一点。'},
+    {line_id:'yan_small_talk_02',npc_id:'yan_teacher',scene:'SMALL_TALK',text:'你最近上课挺认真的，有什么不懂的可以来找我，我办公室周三下午有空。'},
+    {line_id:'yan_small_talk_03',npc_id:'yan_teacher',scene:'SMALL_TALK',text:'积分定理记得吗？每次选择都有代价，这是数学，也是人生。'},
+    {line_id:'zhou_caught_01',npc_id:'zhou_counselor',scene:'CAUGHT',text:'同学，现在是上课时间，你出现在这里是有什么原因吗？我需要登记一下，你理解的吧？'},
+    {line_id:'zhou_caught_02',npc_id:'zhou_counselor',scene:'CAUGHT',text:'我已经见过你好几次了，说实话，我这边没办法再帮你了，这次必须记录在案，你理解一下。'},
+    {line_id:'zhou_small_01',npc_id:'zhou_counselor',scene:'SMALL_TALK',text:'诶，正好碰到你！下周有个志愿活动，你有没有兴趣参加？好处多多的，对综测有加分哦。'},
+    {line_id:'admin_assign_1',npc_id:'admin',scene:'TASK_ASSIGN',text:'三楼东侧。有个柜子。柜子里有一个文件夹。……把它带过来。别打开。'},
+    {line_id:'admin_assign_2',npc_id:'admin',scene:'TASK_ASSIGN',text:'上次你做得不错。这次……去找『第零页』。它在那间教室里，不该存在的那一页。'},
+    {line_id:'admin_small_01',npc_id:'admin',scene:'SMALL_TALK',text:'你还在这里。……大多数人到了这个时候，都已经放弃了。有趣。'},
+    {line_id:'admin_done_01',npc_id:'admin',scene:'TASK_COMPLETE',text:'……很好。你没有打开它。契约继续。'}
+  ];
+  function npcFallbackLine(npc, sceneName) {
+    const pool = FALLBACK_LINES.filter(line => line.npc_id === npc.id && line.scene === sceneName && (line.caughtIndex === undefined || line.caughtIndex === gameState.caught) && (line.minCaught === undefined || gameState.caught >= line.minCaught) && (line.maxCaught === undefined || gameState.caught <= line.maxCaught));
+    if (!pool.length) return '……';
+    const available = pool.filter(line => line.line_id !== npc.lastLines[sceneName]);
+    const line = (available.length ? available : pool)[Math.floor(Math.random() * (available.length ? available : pool).length)];
+    npc.lastLines[sceneName] = line.line_id; return line.text;
+  }
+  function currentPeriodName() { const period=gameState.schedule[gameState.periodIndex]; return period ? period.name : ''; }
+  function npcLocation() {
+    if (gameState.inStrangeSpace) return '奇异空间';
+    const x=camera.position.x,z=camera.position.z;
+    if (Math.hypot(x-HOOP_POS.x,z-HOOP_POS.z)<HOOP_TRIGGER_RADIUS+1 || z>23) return '操场';
+    if (z>9) return '后走廊';
+    if (z < -9) return '前走廊';
+    return '教室';
+  }
+  const NPC_MEMORY_EXTENSIONS = new Set(['TALKED','BASKETBALL_PLAYED','ENTERED_STRANGE_SPACE']);
+  function addNpcMemory(npcId,type,summary,opts={}) {
+    const state=gameState.npcState[npcId]; if(!state || typeof summary!=='string' || !summary.trim()) return;
+    if(type==='ATTENDED_CLASS' && state.lastAttendedDay===gameState.day) return;
+    if(type==='ATTENDED_CLASS') state.lastAttendedDay=gameState.day;
+    const delta=opts.delta || (npcId==='admin'&&type==='TASK_COMPLETED'?{favor:15,trust:10,alert:-5}:CONFIG.NPC_EVENT_DELTAS[type]); // 管理员完成任务时契约值 +15，按设计稿特例替代通用好感 +5。
+    if(!opts.skipDelta && delta) for(const key of ['favor','trust','alert']) state.relation[key]=Math.max(0,Math.min(100,state.relation[key]+(Number(delta[key])||0)));
+    state.memory.push({type,day:gameState.day,period:currentPeriodName(),location:npcLocation(),summary:summary.trim()});
+    while(state.memory.length>20) { const old=state.memory.shift(); state.history=(state.history?state.history+'\n':'')+`第${old.day}天 ${old.type}：${old.summary}`; if(state.history.length>200)state.history=state.history.slice(-200); }
+    // 简化实现：未做设计稿的按类型聚合与净变化统计。
+  }
+  function buildMemorySummary(npcId) { const s=gameState.npcState[npcId]; if(!s)return ''; const parts=[]; if(s.history)parts.push('【历史摘要】\n'+s.history); const recent=s.memory.slice(-5).map(m=>`[第${m.day}天 ${m.period} · ${m.location}] ${m.summary}`); if(recent.length)parts.push(recent.join('\n')); return parts.join('\n'); }
+  function buildRecentEvents(npcId) { const s=gameState.npcState[npcId]; return s?s.memory.slice(-3).map(m=>m.summary):[]; }
+  function applyIntent(npc,intent,deductSuggestion) {
+    const state=gameState.npcState[npc.id], effect=CONFIG.NPC_INTENT_EFFECTS[intent]; if(!state || !effect)return;
+    for(const key of Object.keys(effect)) state.relation[key]=Math.max(0,Math.min(100,state.relation[key]+effect[key]));
+    // 配置中的 alert 是该 NPC 自身警戒；以下按 NPC 身份映射到游戏追查进度。
+    if(intent==='盘问'||intent==='追查') { const pursue=intent==='追查'; if(npc.id==='zhou_counselor')gameState.suspicion=Math.min(100,gameState.suspicion+(pursue?25:10)); if(npc.id==='yan_teacher')gameState.alert=Math.min(100,gameState.alert+(pursue?15:8)); }
+    if(intent==='帮忙' && state.assistedDay!==gameState.day) { state.assistedDay=gameState.day; if(npc.id==='admin')state.relation.favor=Math.min(100,state.relation.favor+5); else {gameState.credits+=2;gameState.todayCredits+=2;updateHUD();if(gameState.credits>=gameState.maxCredits)winGame();} }
+    if(intent==='扣分建议' && state.deductDay!==gameState.day && Number(deductSuggestion)>0) { const amount=Math.min(Number(deductSuggestion),Math.ceil(CONFIG.caughtPenalty[Math.min(gameState.caught,4)]/2)); gameState.credits=Math.max(0,gameState.credits-amount);state.deductDay=gameState.day;addNpcMemory(npc.id,'SCORE_DEDUCTED',`对话中被建议扣分 ${amount} 分`);showToast(`（学分 -${amount}）`);updateHUD();if(gameState.credits<=0){closeChat();clearSave();gameState.finished=true;showPanel('学分耗尽',`最终学分 ${gameState.credits}/${gameState.maxCredits}`,'重新开始',()=>location.reload());} }
+  }
+  async function npcSpeak(npc, sceneName, playerText = '', opts = {}) {
+    try {
+      const relation={...gameState.npcState[npc.id].relation}; const controller=new AbortController(); const timer=setTimeout(()=>controller.abort(),CONFIG.NPC_API_TIMEOUT_MS);
+      let res,json; try { res=await fetch(CONFIG.NPC_API_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({npcId:npc.id,scene:sceneName,playerText,relation,memorySummary:buildMemorySummary(npc.id),recentEvents:buildRecentEvents(npc.id),gameContext:{day:gameState.day,period:currentPeriodName(),credits:gameState.credits,caught:gameState.caught}}),signal:controller.signal}); json=res.ok?await res.json():null; } finally {clearTimeout(timer);}
+      if(res&&res.ok&&json&&typeof json.reply==='string'&&json.reply.trim()) { if(!opts.flavorOnly) { const st=gameState.npcState[npc.id]; if(json.relationDelta&&typeof json.relationDelta==='object')for(const k of ['favor','trust','alert'])if(Number.isFinite(json.relationDelta[k]))st.relation[k]=Math.max(0,Math.min(100,st.relation[k]+json.relationDelta[k])); applyIntent(npc,json.intent,json.deductSuggestion); const ev=json.memoryEvent; if(ev&&typeof ev.type==='string'&&typeof ev.summary==='string'&&ev.summary.trim()&&(CONFIG.NPC_EVENT_DELTAS[ev.type]||NPC_MEMORY_EXTENSIONS.has(ev.type)))addNpcMemory(npc.id,ev.type,ev.summary,{skipDelta:true}); } return json.reply; }
+    } catch(error) { console.info('NPC API 不可用，使用预置台词。',error); }
+    return npcFallbackLine(npc,sceneName);
+  }
+  function areaOf(z) { return z > 9 ? 'back' : z < -9 ? 'front' : 'room'; }
+  function doorBounds(door) {
+    if (door.axis === 'x') {
+      const points = [0, door.width].map(d => { const a = door.pivot.rotation.y; const lz = door.direction * d; return { x: door.plane + lz * Math.sin(a), z: door.hinge + lz * Math.cos(a) }; });
+      const minX = Math.min(points[0].x, points[1].x), maxX = Math.max(points[0].x, points[1].x);
+      const minZ = Math.min(points[0].z, points[1].z), maxZ = Math.max(points[0].z, points[1].z);
+      return { minX: minX - Math.max(.22, playerRadius), maxX: maxX + Math.max(.22, playerRadius), minZ: minZ - .12, maxZ: maxZ + .12 };
+    }
+    const points = [0, door.width].map(d => {
+      const a = door.pivot.rotation.y;
+      const localX = door.direction * d;
+      return { x: door.hingeX + localX * Math.cos(a), z: door.z - localX * Math.sin(a) };
+    });
+    const minX = Math.min(points[0].x, points[1].x), maxX = Math.max(points[0].x, points[1].x);
+    const minZ = Math.min(points[0].z, points[1].z), maxZ = Math.max(points[0].z, points[1].z);
+    return { minX: minX - .12, maxX: maxX + .12, minZ: minZ - Math.max(.22, playerRadius), maxZ: maxZ + Math.max(.22, playerRadius) };
+  }
+  for (const door of doors) door.cachedBounds = doorBounds(door);
+
+  const overlay = document.getElementById('overlay');
+  const startButtons = document.getElementById('startButtons');
+  let saveEnabled = false, gameStarted = false, lastSavedSnapshot = null, lastSaveCheck = 0;
+  function makeSaveSnapshot() {
+    return { version:1, npcState:Object.fromEntries(Object.entries(gameState.npcState).map(([id,n])=>[id,{relation:{...n.relation},memory:n.memory.slice(-20),history:n.history,lastAttendedDay:n.lastAttendedDay,assistedDay:n.assistedDay,deductDay:n.deductDay}])), day:gameState.day, credits:gameState.credits, caught:gameState.caught, suspicion:gameState.suspicion, periodIndex:gameState.periodIndex, periodTimeLeft:Math.floor(gameState.periodTimeLeft), sessionFlag:{rollCalled:gameState.sessionFlag.rollCalled,skipRecorded:gameState.sessionFlag.skipRecorded}, todayAttended:gameState.todayAttended, todaySkipped:gameState.todaySkipped, todayCredits:gameState.todayCredits, todayBasketballCredits:gameState.todayBasketballCredits, lastBasketballCreditDay:gameState.lastBasketballCreditDay, strangeSpaceData:{lastEnterDay:gameState.strangeSpaceData.lastEnterDay,enteredToday:gameState.strangeSpaceData.enteredToday}, mysteryQuestData:{quests:gameState.mysteryQuestData.quests.map(q=>({id:q.id,status:q.status})),holdingItem:gameState.mysteryQuestData.holdingItem} };
+  }
+  function saveGame() {
+    try { const snapshot=JSON.stringify(makeSaveSnapshot()); localStorage.setItem(SAVE_KEY,snapshot); lastSavedSnapshot=snapshot; } catch (_) {}
+  }
+  function loadSave() {
+    try {
+      const data=JSON.parse(localStorage.getItem(SAVE_KEY));
+      const numeric=['day','credits','caught','suspicion','periodIndex','periodTimeLeft','todayAttended','todaySkipped','todayCredits','todayBasketballCredits','lastBasketballCreditDay'];
+      if(!data||data.version!==1||numeric.some(key=>!Number.isFinite(data[key]))||!Number.isInteger(data.day)||data.day<1||data.day>7||!data.sessionFlag||typeof data.sessionFlag.rollCalled!=='boolean'||typeof data.sessionFlag.skipRecorded!=='boolean'||!data.strangeSpaceData||!Number.isFinite(data.strangeSpaceData.lastEnterDay)||typeof data.strangeSpaceData.enteredToday!=='boolean'||!data.mysteryQuestData||!Array.isArray(data.mysteryQuestData.quests)||!data.mysteryQuestData.quests.every(q=>q&&typeof q.id==='string'&&typeof q.status==='string')) return null;
+      return data;
+    } catch (_) { return null; }
+  }
+  function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (_) {} lastSavedSnapshot=null; }
+  function refreshStartUI() {
+    overlay.classList.toggle('prestart',!gameStarted);
+    startButtons.replaceChildren();
+    const addButton=(label,handler)=>{const button=document.createElement('button');button.type='button';button.textContent=label;button.addEventListener('click',handler);startButtons.appendChild(button);};
+    if(gameStarted&&!gameState.finished){addButton('继续',()=>{saveEnabled=true;if(document.pointerLockElement!==renderer.domElement)renderer.domElement.requestPointerLock();});return;}
+    const save=loadSave();
+    if(save){addButton(`继续游戏（第 ${save.day} 天 · 学分 ${save.credits}）`,()=>continueGame(save));addButton('新游戏',()=>{if(confirm('开始新游戏将覆盖当前存档，确定吗？')){clearSave();location.reload();}});}
+    else addButton('开始游戏',()=>{gameStarted=true;saveEnabled=true;if(document.pointerLockElement!==renderer.domElement)renderer.domElement.requestPointerLock();});
+  }
+  function continueGame(data) {
+    if(data.npcState)for(const [id,saved] of Object.entries(data.npcState)){const base=gameState.npcState[id];if(base&&saved){base.relation={...base.relation,...(saved.relation||{})};base.memory=Array.isArray(saved.memory)?saved.memory.slice(-20):[];base.history=typeof saved.history==='string'?saved.history:'';for(const k of ['lastAttendedDay','assistedDay','deductDay'])if(Number.isFinite(saved[k]))base[k]=saved[k];}}
+    gameState.day=data.day; buildSchedule();
+    gameState.periodIndex=Number.isInteger(data.periodIndex)&&data.periodIndex>=0&&data.periodIndex<gameState.schedule.length?data.periodIndex:0;
+    gameState.periodTimeLeft=data.periodTimeLeft; gameState.sessionFlag={...data.sessionFlag};
+    gameState.todayAttended=data.todayAttended; gameState.todaySkipped=data.todaySkipped; gameState.todayCredits=data.todayCredits; gameState.todayBasketballCredits=data.todayBasketballCredits;
+    gameState.credits=data.credits; gameState.caught=data.caught; gameState.suspicion=data.suspicion;
+    for(const saved of data.mysteryQuestData.quests){const quest=gameState.mysteryQuestData.quests.find(q=>q.id===saved.id);if(quest)quest.status=saved.status;}
+    gameState.mysteryQuestData.holdingItem=data.mysteryQuestData.holdingItem;
+    gameState.strangeSpaceData={...data.strangeSpaceData}; gameState.lastBasketballCreditDay=data.lastBasketballCreditDay;
+    gameState.alert=0;gameState.inStrangeSpace=false;gameState.strangeTimeLeft=0;gameState.strangeItem=null;relic.visible=false;
+    teacher.group.position.set(0,0,-5.3);teacher.waypoint=0;teacher.returnStep=0;teacher.facing=0;teacher.group.rotation.y=0;
+    camera.position.set(0,1.6,5);yaw=0;pitch=0;camera.rotation.set(0,0,0,'YXZ');
+    gameStarted=true;saveEnabled=true;updateHUD();renderer.domElement.requestPointerLock();
+  }
+  const prompt = document.getElementById('prompt');
+  const stats = document.getElementById('stats'), skipBadge = document.getElementById('skipBadge');
+  const alertBar = document.getElementById('alertBar'), alertFill = document.getElementById('alertFill');
+  const suspicionRow=document.getElementById('suspicionRow'), suspicionBar=document.getElementById('suspicionBar'), suspicionFill=document.getElementById('suspicionFill'), questRow=document.getElementById('questRow');
+  const dialog = document.getElementById('dialog'), dialogText = document.getElementById('dialogText'), dialogName=document.getElementById('dialogName'), dialogPortrait=document.getElementById('dialogPortrait'), chatBox=document.getElementById('chatBox'), chatMeta=document.getElementById('chatMeta'), chatInput=document.getElementById('chatInput'), chatSend=document.getElementById('chatSend');
+  let currentChat=null;
+  const summary = document.getElementById('summary'), toast = document.getElementById('toast');
+  const basketballOverlay = document.getElementById('basketballOverlay');
+  const basketballFrame = basketballOverlay.querySelector('iframe');
+  let toastTimer = 0, dialogTimer = 0;
+  function updateChatMeta(){if(!currentChat)return;const r=gameState.npcState[currentChat.npc.id].relation;chatMeta.textContent=currentChat.npc.id==='admin'?`契约值 ${r.favor} · 信任 ${r.trust} · 警戒 ${r.alert}`:`好感 ${r.favor} · 信任 ${r.trust} · 警戒 ${r.alert}`;}
+  async function openChat(npc,sceneName){gameState.chatOpen=true;currentChat={npc,scene:sceneName};dialogName.textContent=CONFIG.NPC_NAMES[npc.id];if(NPC_PORTRAITS[npc.id]){dialogPortrait.src=NPC_PORTRAITS[npc.id];dialogPortrait.style.display='block';dialogPortrait.onerror=()=>{dialogPortrait.style.display='none';};}else dialogPortrait.style.display='none';chatBox.style.display='block';dialog.classList.add('visible');dialogText.textContent='……';updateChatMeta();if(document.pointerLockElement)document.exitPointerLock();const chat=currentChat;const line=await npcSpeak(npc,sceneName,'',{flavorOnly:true});if(currentChat===chat)dialogText.textContent=line;chatInput.focus();}
+  async function sendChat(){if(!currentChat||chatInput.disabled)return;const text=chatInput.value.trim();if(!text)return;const chat=currentChat;chatInput.disabled=chatSend.disabled=true;chatMeta.textContent='对方思考中…';const reply=await npcSpeak(chat.npc,chat.scene,text);addNpcMemory(chat.npc.id,'TALKED',`玩家说：“${text.slice(0,30)}”`,{skipDelta:true});if(currentChat===chat){dialogText.textContent=reply;chatInput.value='';chatInput.disabled=chatSend.disabled=false;updateChatMeta();chatInput.focus();}}
+  function closeChat(){gameState.chatOpen=false;currentChat=null;chatBox.style.display='none';dialog.classList.remove('visible');if(!gameState.finished&&!gameState.panelOpen)renderer.domElement.requestPointerLock();}
+  chatSend.addEventListener('click',sendChat);chatInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendChat();}});
+  function showToast(message) { toast.textContent = message; toast.classList.add('visible'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('visible'), 1500); }
+  function closeBasketball(resume = true) {
+    basketballOverlay.style.display = 'none';
+    basketballFrame.src = 'about:blank';
+    gameState.minigameOpen = false;
+    if (resume && !gameState.finished && !gameState.panelOpen) renderer.domElement.requestPointerLock();
+  }
+  function openBasketball() {
+    gameState.minigameOpen = true;
+    basketballOverlay.style.display = 'block';
+    if (document.pointerLockElement) document.exitPointerLock();
+    keys.clear();
+    basketballFrame.src = 'about:blank';
+    basketballFrame.src = 'minigames/basketball.html';
+  }
+  basketballOverlay.querySelector('#basketballClose').addEventListener('click', () => closeBasketball());
+  window.addEventListener('message', event => {
+    const data = event.data;
+    if (!gameState.minigameOpen || !data || data.type !== 'basketball-result') return;
+    closeBasketball(false);
+    const balls = Number.isFinite(Number(data.balls)) ? Math.floor(Number(data.balls)) : 0;
+    const credits = Math.max(0, Math.min(4, Number.isFinite(Number(data.credits)) ? Math.floor(Number(data.credits)) : 0));
+    if (gameState.lastBasketballCreditDay !== gameState.day) {
+      gameState.credits += credits;
+      addNpcMemory('admin','BASKETBALL_PLAYED',`在操场打球获得 ${credits} 学分`,{skipDelta:true}); // 扩展码：设计稿 15 码之外，管理员视作观察记录。
+      gameState.todayCredits += credits;
+      gameState.todayBasketballCredits += credits;
+      gameState.lastBasketballCreditDay = gameState.day;
+      showToast(credits === 0 ? `本局投中 ${balls} 球，未获得学分` : `打球获得 +${credits} 学分`);
+      if (gameState.credits >= gameState.maxCredits) winGame();
+    } else {
+      showToast(`今天的学分已拿过，明天再来（本局投中 ${balls} 球）`);
+    }
+    updateHUD();
+    if (!gameState.finished && !gameState.panelOpen) renderer.domElement.requestPointerLock();
+  });
+  function updateHUD() {
+    const period = gameState.schedule[gameState.periodIndex];
+    stats.textContent = `第 ${gameState.day} 天 · ${period ? period.name : '学期结束'}${period && period.course ? `（${period.course}）` : ''} 剩余 ${Math.ceil(gameState.periodTimeLeft)}s ｜ 学分 ${gameState.credits}/${gameState.maxCredits} ｜ 被抓 ${gameState.caught}/${gameState.caughtMax}`;
+    skipBadge.style.display = gameState.skipping ? 'block' : 'none';
+    alertBar.style.display = gameState.alert > 0 ? 'block' : 'none';
+    alertFill.style.width = `${gameState.alert}%`; alertFill.style.background = `hsl(${48 - gameState.alert * .48}, 95%, 52%)`;
+    suspicionRow.style.display=suspicionBar.style.display=gameState.suspicion>0?'block':'none'; suspicionFill.style.width=`${gameState.suspicion}%`;
+    const q=gameState.mysteryQuestData.quests.find(item=>item.status==='active'||item.status==='hasItem');
+    questRow.style.display=q?'block':'none'; if(q) questRow.textContent=q.status==='hasItem'?`神秘任务：把『${q.itemName}』交给前走廊尽头的神秘人`:`神秘任务：取回『${q.itemName}』（去后走廊的奇异空间）`;
+    if(gameState.inStrangeSpace) questRow.style.display='block',questRow.textContent=`奇异空间剩余 ${Math.ceil(gameState.strangeTimeLeft)} 秒`;
+  }
+  function checkGameOver() {
+    return gameState.credits <= 0 || gameState.caught >= gameState.caughtMax;
+  }
+  function buildSchedule() {
+    const courses = CONFIG.courses[gameState.day - 1], periods = [];
+    const addClass = (i, name) => periods.push({ name, course:courses[i], type:'class', duration:CONFIG.classSeconds });
+    const add = (name,type,duration) => periods.push({ name, type, duration });
+    addClass(0,'上午第1节课'); add('课间','break',CONFIG.breakSeconds);
+    addClass(1,'上午第2节课'); add('午休','lunch',CONFIG.lunchSeconds);
+    if (courses.length > 2) {
+      addClass(2,'下午第1节课');
+      if (courses.length > 3) { add('课间','break',CONFIG.breakSeconds); addClass(3,'下午第2节课'); }
+    }
+    add('晚自习','evening',CONFIG.eveningSeconds); add('熄灯','lights',0);
+    gameState.schedule = periods; gameState.periodIndex = 0;
+    gameState.periodTimeLeft = periods[0].duration; gameState.todayTotal = courses.length;
+    gameState.sessionFlag = { rollCalled:false, skipRecorded:false };
+    onPeriodStart(); updateHUD();
+  }
+  function onPeriodStart() {
+    const period = gameState.schedule[gameState.periodIndex];
+    gameState.skipping = false;
+    if (period && period.type === 'class') {
+      gameState.sessionFlag = { rollCalled:true, skipRecorded:false };
+      const x = camera.position.x, z = camera.position.z;
+      if (x >= -8.2 && x <= 8.2 && z >= -5.2 && z <= 7.6) {
+        gameState.credits += CONFIG.attendanceCredits; gameState.todayAttended++; gameState.todayCredits += CONFIG.attendanceCredits;
+        addNpcMemory('yan_teacher','ATTENDED_CLASS',`第${gameState.day}天${period.course}到课`);
+        showToast('点名成功 +2 学分');
+        if (gameState.credits >= gameState.maxCredits) { winGame(); return; }
+      } else { gameState.todaySkipped++; gameState.sessionFlag.skipRecorded = true; addNpcMemory('yan_teacher','ABSENT_CAUGHT',`第${gameState.day}天${period.course}点名缺席`); }
+    }
+    updateHUD();
+  }
+  function showPanel(title, body, buttonText, callback, npcId) {
+    gameState.panelOpen = true; summary.innerHTML = `${npcId&&NPC_PORTRAITS[npcId]?`<img class="panel-portrait" src="${NPC_PORTRAITS[npcId]}" alt="" onerror="this.remove()">`:''}<h1>${title}</h1><p>${body}</p><button type="button">${buttonText}</button>`;
+    summary.classList.add('visible'); if (document.pointerLockElement) document.exitPointerLock();
+    summary.querySelector('button').addEventListener('click', callback, { once:true });
+  }
+  function winGame() {
+    if (gameState.finished) return; clearSave(); gameState.finished = true; gameState.skipping = false; gameState.panelOpen = true;
+    showPanel('🎉 成功逃离校园！', `用时第 ${gameState.day} 天 · 最终学分 ${gameState.credits}/${gameState.maxCredits}`, '重新开始', () => location.reload());
+  }
+  async function catchPlayer() {
+    if(gameState.panelOpen)return; gameState.panelOpen=true; gameState.alert = 0; gameState.skipping = false;
+    // 先取台词再递增 caught：台词库按被抓次数选词，顺序与改造前一致（首次被抓用首次台词）；panelOpen 已置位，等待期间不会重复触发。
+    const line = await npcSpeak(teacher, 'CAUGHT','',{flavorOnly:true});
+    const penalty = CONFIG.caughtPenalty[Math.min(gameState.caught, CONFIG.caughtPenalty.length - 1)];
+    gameState.credits = Math.max(0, gameState.credits - penalty); gameState.caught++;
+    addNpcMemory('yan_teacher','ABSENT_CAUGHT','逃课被严老师当场抓住'); addNpcMemory('yan_teacher','SCORE_DEDUCTED',`被抓扣 ${penalty} 学分`);
+    gameState.panelOpen=false;
+    if (gameState.caught >= gameState.caughtMax) {
+      clearSave();
+      gameState.finished = true;
+      showPanel('留校察看', `${line}<br>累计天数 ${gameState.day} 天 · 学分 ${gameState.credits}/${gameState.maxCredits} · 被抓 ${gameState.caught} 次`, '重新开始', () => location.reload(), 'yan_teacher');
+    } else {
+      showPanel('被抓住了！', `${line}<br>扣 ${penalty} 学分 · 当前学分 ${gameState.credits}/${gameState.maxCredits} · 被抓 ${gameState.caught}/${gameState.caughtMax} 次`, '回座位', () => {
+        summary.classList.remove('visible'); gameState.panelOpen = false;
+        camera.position.set(0, 1.6, 5); yaw = 0; pitch = 0; camera.rotation.set(0, 0, 0, 'YXZ');
+        if (document.pointerLockElement !== renderer.domElement) renderer.domElement.requestPointerLock();
+      }, 'yan_teacher');
+    }
+    updateHUD();
+  }
+  async function talkWithCounselor() {
+    if(gameState.panelOpen)return; gameState.panelOpen=true; const base=CONFIG.caughtPenalty[Math.min(gameState.caught,4)], penalty=Math.max(2,Math.floor(base/2));
+    gameState.credits=Math.max(0,gameState.credits-penalty); gameState.suspicion=0; gameState.skipping=false; addNpcMemory('zhou_counselor','ABSENT_PATROL','上课时间在走廊游荡，被辅导员巡查谈话'); addNpcMemory('zhou_counselor','SCORE_DEDUCTED',`被辅导员扣 ${penalty} 学分`);
+    camera.position.set(0,1.6,5); yaw=0; pitch=0; camera.rotation.set(0,0,0,'YXZ');
+    const line=await npcSpeak(counselor,'CAUGHT','',{flavorOnly:true}); gameState.panelOpen=false;
+    showPanel('辅导员谈话',`${line}<br>扣 ${penalty} 学分 · 当前学分 ${gameState.credits}/${gameState.maxCredits}`,'回到课堂',()=>{summary.classList.remove('visible');gameState.panelOpen=false;if(gameState.credits<=0){clearSave();gameState.finished=true;showPanel('学分耗尽',`最终学分 ${gameState.credits}/${gameState.maxCredits}`,'重新开始',()=>location.reload());}else renderer.domElement.requestPointerLock();},'zhou_counselor'); updateHUD();
+  }
+  function activeQuest(){return gameState.mysteryQuestData.quests.find(q=>q.status==='active'||q.status==='hasItem');}
+  function nextAvailableQuest(){const qs=gameState.mysteryQuestData.quests;if(qs.some(q=>q.status==='active'||q.status==='hasItem'))return null;return qs.find(q=>q.status==='available');}
+  async function adminInteract(){
+    const data=gameState.mysteryQuestData, held=data.holdingItem, q=activeQuest();
+    if(q&&q.status==='hasItem'&&held===q.id){data.holdingItem=null;q.status='done';gameState.credits+=q.reward;gameState.todayCredits+=q.reward;addNpcMemory('admin','TASK_COMPLETED',`交付『${q.itemName}』，契约加深`);const line=await npcSpeak(admin,'TASK_COMPLETE','',{flavorOnly:true});showPanel('任务完成',`${line}<br>交付『${q.itemName}』，获得 +${q.reward} 学分。`,'继续',()=>{summary.classList.remove('visible');gameState.panelOpen=false;if(gameState.credits>=gameState.maxCredits)winGame();else renderer.domElement.requestPointerLock();},'admin');return;}
+    const available=nextAvailableQuest();
+    if(available){available.status='active';addNpcMemory('admin','CONTRACT_MADE',`接取委托：取回『${available.itemName}』`);const line=available.id==='mystery1'?FALLBACK_LINES.find(l=>l.line_id==='admin_assign_1').text:FALLBACK_LINES.find(l=>l.line_id==='admin_assign_2').text;showPanel('管理员的委托',`${line}<br>目标：去奇异空间取回『${available.itemName}』。`,'接受',()=>{summary.classList.remove('visible');gameState.panelOpen=false;renderer.domElement.requestPointerLock();},'admin');return;}
+    showPanel('管理员',await npcSpeak(admin,'SMALL_TALK','',{flavorOnly:true}),'继续',()=>{summary.classList.remove('visible');gameState.panelOpen=false;renderer.domElement.requestPointerLock();});
+  }
+  function enterStrangeSpace(){addNpcMemory('admin','ENTERED_STRANGE_SPACE','进入了奇异空间',{skipDelta:true});gameState.inStrangeSpace=true;gameState.strangeSpaceData.enteredToday=true;gameState.strangeSpaceData.lastEnterDay=gameState.day;gameState.strangeTimeLeft=CONFIG.strangeTimeLimit;camera.position.set(120,1.6,7);yaw=0;pitch=0;camera.rotation.set(0,0,0,'YXZ');const q=activeQuest(),spots=[[116, -4],[124,1],[120,-6]],spot=spots[Math.floor(Math.random()*spots.length)];gameState.strangeItem=q&&q.status==='active'?q:null;relic.position.set(spot[0],1.6,spot[1]);relic.visible=true;scene.fog.color.setHex(STRANGE_FOG_COLOR);updateHUD();}
+  function leaveStrangeSpace(){gameState.inStrangeSpace=false;relic.visible=false;camera.position.set(-8.3,1.6,13.7);scene.fog.color.setHex(NORMAL_FOG_COLOR);updateHUD();}
+  function updateStrangeSpace(dt){
+    for(const d of strangeDesks)d.mesh.position.y=d.y+Math.sin(performance.now()/700+d.phase)*.18;
+    const pulse=.65+Math.sin(performance.now()/450)*.25;portalFrame.material.opacity=1;portalFace.material.opacity=pulse;
+    const p=gameState.strangeSpaceData, dist=Math.hypot(camera.position.x+9.7,camera.position.z-15), period=gameState.schedule[gameState.periodIndex];
+    for(const q of gameState.mysteryQuestData.quests)if(q.status==='locked'&&gameState.day>=q.day&&(!gameState.mysteryQuestData.quests.slice(0,gameState.mysteryQuestData.quests.indexOf(q)).some(prev=>prev.status!=='done')))q.status='available';
+    const unlocked=gameState.day>=CONFIG.strangeUnlockDay;crack.visible=!unlocked;portal.visible=unlocked;
+    const adminVisible=gameState.day>=4&&period&&['break','lunch'].includes(period.type);admin.group.visible=!!adminVisible;
+    const exitDist=Math.hypot(camera.position.x-120,camera.position.z-5);
+    if(gameState.inStrangeSpace){gameState.strangeTimeLeft-=dt;const rd=Math.hypot(camera.position.x-relic.position.x,camera.position.z-relic.position.z);
+      if(relic.visible&&rd<1.6){relic.visible=false;const q=activeQuest();if(q&&q.status==='active'){q.status='hasItem';gameState.mysteryQuestData.holdingItem=q.id;showToast(`拿到了『${q.itemName}』，回去交给神秘人`);}else{gameState.credits+=CONFIG.strangeFragmentCredits;gameState.todayCredits+=CONFIG.strangeFragmentCredits;showToast(`学分碎片 +${CONFIG.strangeFragmentCredits}`);if(gameState.credits>=gameState.maxCredits)winGame();}}
+      if(gameState.strangeTimeLeft<=0)leaveStrangeSpace();
+      return;
+    }
+    const adminNear=adminVisible&&Math.hypot(camera.position.x-admin.group.position.x,camera.position.z-admin.group.position.z)<=CONFIG.talkDistance;
+    const portalNear=dist<2.6;const hoopDist=Math.hypot(camera.position.x-HOOP_POS.x,camera.position.z-HOOP_POS.z);
+    if(portalNear) {prompt.style.display='block';prompt.textContent=!unlocked?'这扇门还没有出现。':p.enteredToday?'今天的裂隙已经闭合，明天再来吧。':'按 F 进入奇异空间';}
+    else if(adminNear){prompt.style.display='block';prompt.textContent='按 F 和神秘人交谈';}
+    else if(!gameState.panelOpen&&hoopDist>=HOOP_TRIGGER_RADIUS&&Math.hypot(camera.position.x-teacher.group.position.x,camera.position.z-teacher.group.position.z)>CONFIG.talkDistance&&Math.hypot(camera.position.x-counselor.group.position.x,camera.position.z-counselor.group.position.z)>CONFIG.talkDistance&&!nearbyDoor)prompt.style.display='none';
+  }
+  function playerVisibleToTeacher() {
+    return playerVisibleTo(teacher,CONFIG.teacherViewDistance,CONFIG.teacherViewHalfAngle);
+  }
+  function playerVisibleTo(npc,distance,halfAngle) {
+    const tx = npc.group.position.x, tz = npc.group.position.z;
+    const dx = camera.position.x - tx, dz = camera.position.z - tz;
+    if (areaOf(tz) !== areaOf(camera.position.z) || Math.hypot(dx, dz) > distance) return false;
+    const toward = Math.atan2(dx, dz), delta = Math.atan2(Math.sin(toward - npc.facing), Math.cos(toward - npc.facing));
+    return Math.abs(delta) <= halfAngle * Math.PI / 180;
+  }
+  function updateTeacher(dt) {
+    const period = gameState.schedule[gameState.periodIndex];
+    const active = !gameState.inStrangeSpace && !gameState.panelOpen && !gameState.finished && !gameState.minigameOpen && document.pointerLockElement === renderer.domElement;
+    if (active) {
+      let target;
+      if (period && period.type === 'class') {
+        target = teacherWaypoints[teacher.waypoint];
+        const dx = target[0] - teacher.group.position.x, dz = target[1] - teacher.group.position.z, distance = Math.hypot(dx, dz);
+        if (distance < .15) { teacher.waypoint = (teacher.waypoint + 1) % teacherWaypoints.length; target = teacherWaypoints[teacher.waypoint]; }
+      } else { teacher.waypoint = 0; if(Math.hypot(teacher.group.position.x,teacher.group.position.z+5.3)<.2)teacher.returnStep=1; target=teacher.returnStep===0?[2.6,-5.3]:[0,-5.3]; }
+      let dx = target[0] - teacher.group.position.x, dz = target[1] - teacher.group.position.z, distance = Math.hypot(dx, dz);
+      if(period&&period.type==='class')teacher.returnStep=0;
+      else if(distance<.15&&teacher.returnStep===0){teacher.returnStep=1;target=[0,-5.3];dx=target[0]-teacher.group.position.x;dz=target[1]-teacher.group.position.z;distance=Math.hypot(dx,dz);}
+      if (distance > .001) {
+        const step = Math.min(distance, CONFIG.teacherSpeed * dt), dirX = dx / distance, dirZ = dz / distance;
+        teacher.group.position.x += dirX * step; teacher.group.position.z += dirZ * step;
+        const desired = Math.atan2(dirX, dirZ), turn = Math.atan2(Math.sin(desired - teacher.facing), Math.cos(desired - teacher.facing));
+        teacher.facing += Math.max(-5 * dt, Math.min(5 * dt, turn)); teacher.group.rotation.y = teacher.facing;
+        for (const door of doors) if (!door.open && Math.abs(teacher.group.position.z - door.z) < .35 && Math.abs(teacher.group.position.x) < DOOR_WIDTH / 2 + .5) { door.open = true; door.passable=false; }
+      }
+    }
+    if (active) {
+      if (gameState.skipping && playerVisibleToTeacher()) gameState.alert += 100 / CONFIG.alertRiseSeconds * dt;
+      else gameState.alert -= CONFIG.alertDecayPerSec * dt;
+      gameState.alert = Math.max(0, Math.min(100, gameState.alert));
+      if (gameState.alert >= 100) catchPlayer();
+      const cseen=period&&period.type==='class'&&gameState.skipping&&counselor.group.visible&&playerVisibleTo(counselor,CONFIG.suspicionViewDistance,CONFIG.suspicionViewHalfAngle);
+      gameState.suspicion=Math.max(0,Math.min(100,gameState.suspicion+(cseen?100/CONFIG.suspicionRiseSeconds:-1*(areaOf(camera.position.z)==='room'?CONFIG.suspicionDecayInClassPerSec:CONFIG.suspicionDecayPerSec))*dt));
+      if(gameState.suspicion>=100)talkWithCounselor();
+    }
+    const canTalk = active && Math.hypot(camera.position.x - teacher.group.position.x, camera.position.z - teacher.group.position.z) <= CONFIG.talkDistance;
+    const canTalkCounselor=active&&counselor.group.visible&&Math.hypot(camera.position.x-counselor.group.position.x,camera.position.z-counselor.group.position.z)<=CONFIG.talkDistance;
+    const doorPrompt = nearbyDoor && document.pointerLockElement === renderer.domElement;
+    const hoopNearby = Math.hypot(camera.position.x - HOOP_POS.x, camera.position.z - HOOP_POS.z) < HOOP_TRIGGER_RADIUS;
+    const hoopPrompt = active && hoopNearby && period && ['break', 'lunch', 'class', 'evening'].includes(period.type);
+    const adminNear=admin.group.visible&&Math.hypot(camera.position.x-admin.group.position.x,camera.position.z-admin.group.position.z)<=CONFIG.talkDistance;
+    const portalNear=Math.hypot(camera.position.x+9.7,camera.position.z-15)<2.6;
+    prompt.style.display = doorPrompt || hoopPrompt || canTalk || canTalkCounselor || adminNear || portalNear ? 'block' : 'none';
+    if (doorPrompt) prompt.textContent = '按 E ' + (nearbyDoor.open ? '关门' : '开门');
+    else if (hoopPrompt) prompt.textContent = period && (period.type === 'break' || period.type === 'lunch') ? '按 F 打篮球' : (period && (period.type === 'class' || period.type === 'evening') ? '上课时间，操场关闭' : '');
+    else if (canTalk) prompt.textContent = '按 F 和严老师说话';
+    else if(canTalkCounselor) prompt.textContent='按 F 和周辅导员说话';
+    else if(adminNear) prompt.textContent='按 F 和神秘人交谈';
+    else if(portalNear) prompt.textContent=gameState.day<CONFIG.strangeUnlockDay?'这扇门还没有出现。':gameState.strangeSpaceData.enteredToday?'今天的裂隙已经闭合，明天再来吧。':'按 F 进入奇异空间';
+  }
+  function endDay() {
+    gameState.skipping = false;
+    showPanel(`第 ${gameState.day} 天小结`, `到课 ${gameState.todayAttended}/${gameState.todayTotal} 节 · 今日获得学分 +${gameState.todayCredits}${gameState.todayBasketballCredits > 0 ? ` · 篮球 +${gameState.todayBasketballCredits} 学分` : ''} · 今日逃课 ${gameState.todaySkipped} 次 · 累计学分 ${gameState.credits}/${gameState.maxCredits}`, gameState.day < 7 ? '进入下一天' : '确认', () => {
+      summary.classList.remove('visible'); gameState.panelOpen = false;
+      if (gameState.day === 7) {
+        clearSave();
+        gameState.panelOpen = true;
+        showPanel('学期结束', `最终学分 ${gameState.credits}/${gameState.maxCredits} · 还差 ${Math.max(0,gameState.maxCredits-gameState.credits)} 分`, '重新开始', () => location.reload());
+        return;
+      }
+      gameState.day++; gameState.todayAttended=0; gameState.todaySkipped=0; gameState.todayCredits=0; gameState.todayBasketballCredits=0; gameState.strangeSpaceData.enteredToday=false;
+      camera.position.set(0,1.6,5); yaw=0; pitch=0; camera.rotation.set(0,0,0,'YXZ'); buildSchedule();
+      if (document.pointerLockElement !== renderer.domElement) renderer.domElement.requestPointerLock();
+    }, { once:true });
+  }
+  function updateSchedule(dt) {
+    if (gameState.finished || gameState.panelOpen || gameState.minigameOpen || gameState.chatOpen || gameState.inStrangeSpace || document.pointerLockElement !== renderer.domElement) return;
+    const period = gameState.schedule[gameState.periodIndex];
+    if (!period) return;
+    if (period.type === 'class') {
+      const outside = Math.abs(camera.position.x) >= 9.8 || Math.abs(camera.position.z) >= 8.8;
+      gameState.skipping = outside;
+      if (outside && gameState.sessionFlag.rollCalled && !gameState.sessionFlag.skipRecorded) { gameState.todaySkipped++; gameState.sessionFlag.skipRecorded = true; }
+    } else gameState.skipping = false;
+    gameState.periodTimeLeft -= dt;
+    if (gameState.periodTimeLeft <= 0) {
+      if (period.type === 'lights') { endDay(); updateHUD(); return; }
+      gameState.periodIndex++;
+      if (gameState.periodIndex < gameState.schedule.length) { gameState.periodTimeLeft = gameState.schedule[gameState.periodIndex].duration; onPeriodStart(); }
+    }
+    updateHUD();
+  }
+  buildSchedule();
+  refreshStartUI();
+  let yaw = 0, pitch = 0;
+  document.addEventListener('mousemove', e => {
+    if (document.pointerLockElement !== renderer.domElement) return;
+    yaw -= e.movementX * .0022;
+    pitch -= e.movementY * .0022;
+    pitch = Math.max(-1.45, Math.min(1.45, pitch));
+    camera.rotation.set(pitch, yaw, 0, 'YXZ');
+  });
+  const keys = new Set();
+  document.addEventListener('keydown', e => {
+    if(gameState.chatOpen){if(e.code==='Escape'){e.preventDefault();closeChat();}else if(e.code==='Enter'&&document.activeElement!==chatInput){e.preventDefault();sendChat();}return;}
+    keys.add(e.code);
+    if (e.code === 'KeyE' && document.pointerLockElement === renderer.domElement && nearbyDoor) {
+      nearbyDoor.open = !nearbyDoor.open;
+      nearbyDoor.passable=false;
+    }
+    if (e.code === 'KeyF' && document.pointerLockElement === renderer.domElement) {
+      if(gameState.inStrangeSpace){if(Math.hypot(camera.position.x-120,camera.position.z-5)<1.6)leaveStrangeSpace();return;}
+      const hoopDistance = Math.hypot(camera.position.x - HOOP_POS.x, camera.position.z - HOOP_POS.z);
+      const period = gameState.schedule[gameState.periodIndex];
+      const portalNear=Math.hypot(camera.position.x+9.7,camera.position.z-15)<2.6;
+      const adminNear=admin.group.visible&&Math.hypot(camera.position.x-admin.group.position.x,camera.position.z-admin.group.position.z)<=CONFIG.talkDistance;
+      if(portalNear){if(gameState.day<CONFIG.strangeUnlockDay)showToast('这扇门还没有出现。');else if(gameState.strangeSpaceData.enteredToday)showToast('今天的裂隙已经闭合，明天再来吧。');else enterStrangeSpace();}
+      else if(adminNear){const q=activeQuest(),available=nextAvailableQuest();if((q&&q.status==='hasItem')||available)adminInteract();else openChat(admin,'SMALL_TALK');}
+      else if (hoopDistance < HOOP_TRIGGER_RADIUS) {
+        if (period && (period.type === 'break' || period.type === 'lunch')) openBasketball();
+        else if (period && (period.type === 'class' || period.type === 'evening')) showToast('上课时间，操场关闭');
+      } else if (Math.hypot(camera.position.x - teacher.group.position.x, camera.position.z - teacher.group.position.z) <= CONFIG.talkDistance) openChat(teacher,period&&period.type==='class'?'PATROL':'SMALL_TALK');
+      else if(counselor.group.visible&&Math.hypot(camera.position.x-counselor.group.position.x,camera.position.z-counselor.group.position.z)<=CONFIG.talkDistance)openChat(counselor,period&&period.type==='class'&&gameState.skipping?'PATROL':'SMALL_TALK');
+    }
+  });
+  document.addEventListener('keyup', e => keys.delete(e.code));
+  document.addEventListener('pointerlockchange', () => {
+    overlay.classList.toggle('hidden', document.pointerLockElement === renderer.domElement);
+    if(document.pointerLockElement!==renderer.domElement)refreshStartUI();
+    keys.clear();
+  });
+  let nearbyDoor = null;
+  function overlaps(x, z, b) { return x + playerRadius > b.minX && x - playerRadius < b.maxX && z + playerRadius > b.minZ && z - playerRadius < b.maxZ; }
+  function collides(x, z) {
+    for (const c of colliders) {
+      if (c.door) {
+        if (!c.door.passable && overlaps(x, z, c.door.cachedBounds)) return true;
+      } else {
+        let b = c.bounds;
+        if (!b) {
+          const p = c.mesh.position;
+          b = { minX: p.x - c.sx / 2, maxX: p.x + c.sx / 2, minZ: p.z - c.sz / 2, maxZ: p.z + c.sz / 2 };
+        }
+        if (overlaps(x, z, b)) return true;
+      }
+    }
+    return false;
+  }
+  function updateDoors(dt) {
+    const step=Math.PI*.48/.25*dt;
+    for(const door of doors){const target=door.open?door.direction*Math.PI*.48:0,cur=door.pivot.rotation.y,diff=target-cur;if(Math.abs(diff)>.000001){door.pivot.rotation.y=cur+Math.sign(diff)*Math.min(Math.abs(diff),step);door.cachedBounds=doorBounds(door);}if(Math.abs(door.pivot.rotation.y-target)<.000001){door.pivot.rotation.y=target;door.passable=door.open;}else door.passable=false;}
+  }
+  function update(dt) {
+    updateDoors(dt);
+    if (gameState.minigameOpen) { updateSchedule(dt); updateTeacher(dt); return; }
+    if(gameState.chatOpen){if(currentChat&&Math.hypot(camera.position.x-currentChat.npc.group.position.x,camera.position.z-currentChat.npc.group.position.z)>CONFIG.talkDistance+1.5)closeChat();updateTeacher(dt);return;}
+    if(gameState.inStrangeSpace){updateStrangeSpace(dt);const s=4.6*dt;forward.set(-Math.sin(yaw),0,-Math.cos(yaw));right.set(Math.cos(yaw),0,-Math.sin(yaw));move.set(0,0,0);if(keys.has('KeyW'))move.add(forward);if(keys.has('KeyS'))move.sub(forward);if(keys.has('KeyD'))move.add(right);if(keys.has('KeyA'))move.sub(right);if(move.lengthSq()){move.normalize().multiplyScalar(s);camera.position.x+=move.x;camera.position.z+=move.z;}camera.position.x=Math.max(110.6,Math.min(129.4,camera.position.x));camera.position.z=Math.max(-8.4,Math.min(8.4,camera.position.z));updateHUD();return;}
+    const speed = 4.6 * dt;
+    const prevX = camera.position.x, prevZ = camera.position.z;
+    if (collides(prevX, prevZ)) {
+      let escaped = false;
+      for (let distance = .08; distance <= 1.36 && !escaped; distance += .08) {
+        for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const x = prevX + dx * distance, z = prevZ + dz * distance;
+          if (!collides(x, z)) {
+            camera.position.x = x; camera.position.z = z; escaped = true; break;
+          }
+        }
+      }
+      if (!escaped) { camera.position.x = prevX; camera.position.z = prevZ; }
+    }
+    forward.set(-Math.sin(yaw), 0, -Math.cos(yaw));
+    right.set(Math.cos(yaw), 0, -Math.sin(yaw));
+    move.set(0, 0, 0);
+    if (keys.has('KeyW')) move.add(forward);
+    if (keys.has('KeyS')) move.sub(forward);
+    if (keys.has('KeyD')) move.add(right);
+    if (keys.has('KeyA')) move.sub(right);
+    if (move.lengthSq()) {
+      move.normalize().multiplyScalar(speed);
+      const steps = Math.ceil(move.length() / .08);
+      move.multiplyScalar(1 / steps);
+      for (let i = 0; i < steps; i++) {
+        const candidateX = camera.position.x + move.x;
+        if (!collides(candidateX, camera.position.z)) camera.position.x = candidateX;
+        const candidateZ = camera.position.z + move.z;
+        if (!collides(camera.position.x, candidateZ)) camera.position.z = candidateZ;
+      }
+    }
+    nearbyDoor = null;
+    for (const door of doors) {
+      const cx = door.cx, cz = door.cz;
+      if (Math.hypot(camera.position.x - cx, camera.position.z - cz) < 2.25) { nearbyDoor = door; break; }
+    }
+    updateSchedule(dt);
+    const period=gameState.schedule[gameState.periodIndex];
+    const classKey=period&&period.type==='class'?gameState.day+'-'+gameState.periodIndex:'';
+    if(classKey&&classKey!==counselor.periodKey){if(counselor.periodKey!=='')counselor.area=counselor.area==='front'?'back':'front';counselor.periodKey=classKey;counselor.waypoint=0;const startWp=(counselor.area==='front'?counselorWaypoints:counselorBackWaypoints)[0];counselor.group.position.set(startWp[0],0,startWp[1]);}
+    counselor.group.visible=!!(period&&period.type==='class');
+    if(counselor.group.visible){const wps=counselor.area==='front'?counselorWaypoints:counselorBackWaypoints;let target=wps[counselor.waypoint];let dx=target[0]-counselor.group.position.x,dz=target[1]-counselor.group.position.z,dist=Math.hypot(dx,dz);if(dist<.15){counselor.waypoint=(counselor.waypoint+1)%wps.length;target=wps[counselor.waypoint];dx=target[0]-counselor.group.position.x;dz=target[1]-counselor.group.position.z;dist=Math.hypot(dx,dz);}if(dist>.001){const st=Math.min(dist,CONFIG.counselorSpeed*dt),vx=dx/dist,vz=dz/dist;counselor.group.position.x+=vx*st;counselor.group.position.z+=vz*st;counselor.facing=Math.atan2(vx,vz);counselor.group.rotation.y=counselor.facing;}}
+    updateTeacher(dt);
+    updateStrangeSpace(dt);
+  }
+  let last = performance.now();
+  updateHUD();
+  scene.traverse(o => { if (!o.isMesh) return; o.receiveShadow = true; const n = o.name || ''; o.castShadow =!(n.includes('ceiling') || n.includes('wall') || n.includes('floor') || n.includes('glass') || n.includes('sign') || n.includes('skyline') || n.includes('cloud')) &&!(o.material && o.material.isMeshBasicMaterial);});
+  function animate(now) {
+    requestAnimationFrame(animate);
+    const dt = Math.min((now - last) / 1000, .05); last = now;
+    update(dt);
+    if(saveEnabled&&!gameState.finished&&now-lastSaveCheck>=500){lastSaveCheck=now;try{const snapshot=JSON.stringify(makeSaveSnapshot());if(snapshot!==lastSavedSnapshot)saveGame();}catch(_){}}
+    renderer.render(scene, camera);
+  }
+  animate(last);
+  window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+})();
+</script>
+</body>
+</html>
