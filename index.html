@@ -90,7 +90,7 @@
   const scene = new THREE.Scene();
   const skyCanvas = document.createElement('canvas'); skyCanvas.width = 16; skyCanvas.height = 512;
   const skyCtx = skyCanvas.getContext('2d'); const skyGradient = skyCtx.createLinearGradient(0, 0, 0, 512);
-  skyGradient.addColorStop(0, '#6f9fd8'); skyGradient.addColorStop(.5, '#bcd7ee'); skyGradient.addColorStop(1, '#ffe3b3');
+  skyGradient.addColorStop(0, '#5f97d6'); skyGradient.addColorStop(.5, '#bcd7ee'); skyGradient.addColorStop(1, '#ffe9c0');
   skyCtx.fillStyle = skyGradient; skyCtx.fillRect(0, 0, 16, 512);
   const skyTexture = new THREE.CanvasTexture(skyCanvas); skyTexture.colorSpace = THREE.SRGBColorSpace; scene.background = skyTexture;
   scene.fog = new THREE.Fog(0xf6e3c2, 55, 210);
@@ -107,7 +107,7 @@
   document.body.appendChild(renderer.domElement);
 
   scene.add(new THREE.HemisphereLight(0xffffff, 0xb4c7bc, 2.0));
-  const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+  const sun = new THREE.DirectionalLight(0xffe3b8, 2.2);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.camera.left = -52; sun.shadow.camera.right = 52; sun.shadow.camera.top = 52; sun.shadow.camera.bottom = -52; sun.shadow.camera.near = 1; sun.shadow.camera.far = 170;
@@ -116,6 +116,36 @@
 
   const materials = {};
   const mat = (color) => materials[color] || (materials[color] = new THREE.MeshLambertMaterial({ color }));
+  const texLib = {};
+  function loadTex(key, url) {
+    const entry = texLib[key] = { tex: null, loaded: false, waiters: [] };
+    if (typeof THREE.TextureLoader !== 'function') return entry;
+    try {
+      entry.tex = new THREE.TextureLoader().load(url, tex => {
+        tex.colorSpace = THREE.SRGBColorSpace; tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        try { tex.anisotropy = renderer.capabilities.getMaxAnisotropy(); } catch (_) { tex.anisotropy = 4; }
+        entry.loaded = true;
+        entry.waiters.forEach(fn => fn(tex));
+      }, undefined, () => {});
+    } catch (_) {}
+    return entry;
+  }
+  function texMat(key, rx, ry, tintHex, fallbackColor) {
+    const material = new THREE.MeshLambertMaterial({ color: fallbackColor });
+    const apply = tex => { const clone = tex.clone(); clone.repeat.set(rx, ry); clone.needsUpdate = true; material.map = clone; material.color.setHex(tintHex); material.needsUpdate = true; };
+    const entry = texLib[key];
+    if (entry) { if (entry.loaded) apply(entry.tex); else entry.waiters.push(apply); }
+    return material;
+  }
+  function glassMat(rx, ry) {
+    const material = new THREE.MeshLambertMaterial({ color: 0x8fb2c9, emissive: 0xcc8433, emissiveIntensity: .38, transparent: true, opacity: .82 });
+    const apply = tex => { const clone = tex.clone(); clone.repeat.set(rx, ry); clone.needsUpdate = true; material.map = clone; material.needsUpdate = true; };
+    const entry = texLib.glass;
+    if (entry) { if (entry.loaded) apply(entry.tex); else entry.waiters.push(apply); }
+    return material;
+  }
+  loadTex('facade', 'assets/tex/facade-teaching.webp'); loadTex('glass', 'assets/tex/glass-canteen.webp');
+  loadTex('grass', 'assets/tex/grass.webp'); loadTex('paving', 'assets/tex/paving.webp');
   const colliders = [];
   function box(name, x, y, z, sx, sy, sz, color, solid = false) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat(color));
@@ -144,11 +174,6 @@
   box('corridor end right', 5.85, 2.5, 23, 7.7, 5, .35, 0xb7d0d5, true);
   box('corridor end lintel', 0, 4.3, 23, 3.4, 1.4, .35, 0xb7d0d5, false);
   const HOOP_POS = { x:-48.6, z:79 }, HOOP_TRIGGER_RADIUS = 2.6;
-  box('basketball hoop pole', 0, 2.15, 21.65, .22, 4.3, .22, 0x59636b, true);
-  box('basketball backboard', 0, 3.65, 21.12, 2.2, 1.25, .16, 0xf5f1df, true);
-  box('basketball rim', 0, 3.08, 20.84, 1.05, .12, .16, 0xd7472f, true);
-  box('basketball rim support', 0, 3.25, 21.02, .16, .18, .38, 0x59636b);
-  box('basketball sign', 2.1, 1.65, 21.35, 1.2, .9, .12, 0xe8a53a, true);
   box('front corridor left wall', -10, 2.5, -16, .35, 5, 14, 0xb7d0d5, true);
   box('front corridor right wall', 10, 2.5, -16, .35, 5, 14, 0xb7d0d5, true);
   box('front corridor end', 0, 2.5, -23, 20, 5, .35, 0xb7d0d5, true);
@@ -198,6 +223,41 @@
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide })); mesh.name = `sign ${text}`; return mesh;
   }
   function addSign(text, w, h, bg, fg, x, y, z, rotationY = 0) { const s = makeSign(text, w, h, bg, fg); s.position.set(x, y, z); s.rotation.y = rotationY; scene.add(s); return s; }
+  // 教学楼大厅（后走廊改造）：所有新增物件均为纯视觉，不参与碰撞。
+  box('lobby ceiling side', -6.9, 4.92, 16, 6.2, .18, 14.2, 0xefe8d8);
+  box('lobby ceiling side', 6.9, 4.92, 16, 6.2, .18, 14.2, 0xefe8d8);
+  box('lobby ceiling raised', 0, 5.5, 16, 7.6, .18, 14.2, 0xf7f1dc);
+  for (const x of [-3.85, 3.85]) { const strip = new THREE.Mesh(new THREE.BoxGeometry(.08, .08, 14), new THREE.MeshLambertMaterial({color:0xffe9b8, emissive:0xffca7a, emissiveIntensity:1})); strip.name='lobby light strip'; strip.position.set(x,5.36,16); scene.add(strip); }
+  for (const z of [12,16,20]) {
+    const rod = new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.66), mat(0x59636b)); rod.name='lobby pendant rod'; rod.position.set(0,5.05,z); scene.add(rod);
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(.22,12,10), new THREE.MeshLambertMaterial({color:0xfff3cf, emissive:0xffca7a, emissiveIntensity:.95})); lamp.name='lobby pendant lamp'; lamp.position.set(0,4.6,z); scene.add(lamp);
+  }
+  const lobbyLight = new THREE.PointLight(0xffd9a0,18,19); lobbyLight.position.set(0,4.2,16); scene.add(lobbyLight);
+  for (const [x,z] of [[9.66,10.2],[9.66,15.9],[9.66,21.6],[-9.66,13.4],[-9.66,21.6]]) {
+    box('lobby pilaster',x,2.5,z,.34,5,.8,0xd9cfb8);
+    box('lobby pilaster base',x,.18,z,.44,.36,.95,0xcabfa8);
+  }
+  box('lobby notice board',9.8,1.9,13.5,.08,1.7,3.6,0x37474f);
+  for (const [y,z,color] of [[2.25,12.9,0xe8833a],[2.25,14.1,0x4d9ab0],[1.55,12.9,0xd94f4f],[1.55,14.1,0x7a9e7e]]) box('lobby poster',9.73,y,z,.04,.62,1.0,color);
+  addSign('公告栏',1.6,.5,'#37474f','#ffffff',9.72,3.05,13.5,-Math.PI/2);
+  box('lobby display board',-9.8,1.9,18.5,.08,1.7,3.6,0x5a4632);
+  for (const [y,z,color] of [[2.25,17.9,0x9a6fc0],[2.25,19.1,0xd9a441],[1.55,17.9,0x3f6fb5],[1.55,19.1,0xc0533f]]) box('lobby poster',-9.73,y,z,.04,.62,1.0,color);
+  addSign('校园文化墙',2.2,.5,'#5a4632','#ffffff',-9.72,3.05,18.5,Math.PI/2);
+  box('lobby stair door',-9.8,1.45,10.8,.1,2.9,1.5,0x8e5638);
+  box('lobby stair door frame',-9.8,3.0,10.8,.12,.18,1.7,0x6e5638);
+  addSign('楼梯间',1.1,.45,'#5a4632','#fff3d6',-9.72,3.35,10.8,Math.PI/2);
+  addSign('教学楼大厅',3.4,.8,'#3d5a73','#ffffff',0,4.35,22.78,Math.PI);
+  addSign('楼层导览 · 1F 大厅',2.4,.6,'#3d5a73','#ffffff',9.72,2.6,19.6,-Math.PI/2);
+  for (const [x,z] of [[9,17.5],[-9,14.5]]) {
+    box('lobby bench seat',x,.55,z,.55,.12,2.2,0x9a6a42);
+    box('lobby bench back',x+(x>0?.32:-.32),.88,z,.1,.5,2.2,0x9a6a42);
+    for (const dz of [-.8,.8]) box('lobby bench leg',x,.27,z+dz,.12,.55,.12,0x59636b);
+  }
+  for (const [x,z] of [[-8.9,11],[8.9,11],[-8.9,21.8],[8.9,21.8]]) {
+    box('lobby planter',x,.25,z,.7,.5,.7,0x6d4c33);
+    const shrub = new THREE.Mesh(new THREE.SphereGeometry(.5,10,8),mat(0x4e8f3f)); shrub.name='lobby shrub'; shrub.position.set(x,.95,z); scene.add(shrub);
+    const shrubTop = new THREE.Mesh(new THREE.SphereGeometry(.34),mat(0x5da34c)); shrubTop.name='lobby shrub'; shrubTop.position.set(x+(x>0?-.25:.25),1.25,z+.15); scene.add(shrubTop);
+  }
   // 校园外围、教学楼立面与远景。
   box('campus grass floor', 5, -.3, 72.5, 200, .24, 105, 0x77b25a);
   for (const [name, x, z, sx, sz] of [['campus wall south west', -60.5, 23, 69, .4], ['campus wall south east', 65.5, 23, 79, .4], ['campus wall west', -95, 74, .4, 102], ['campus wall north west', -51, 125, 88, .4], ['campus wall north east', 56, 125, 98, .4], ['campus wall east', 105, 74, .4, 102]]) box(name, x, 1.1, z, sx, 2.2, sz, 0xa8a29a, true);
@@ -220,7 +280,7 @@
   box('flag base', 0, .25, 44, 1.8, .5, 1.8, 0xb9b3a8, true);
   const flagPole = new THREE.Mesh(new THREE.CylinderGeometry(.07,.09,10,12), mat(0xd8d8d8)); flagPole.name='flag pole'; flagPole.position.set(0,5.2,44); scene.add(flagPole); colliders.push({bounds:{minX:-.45,maxX:.45,minZ:43.55,maxZ:44.45}});
   box('campus flag', 1.15, 9.3, 44, 2.2, 1.3, .05, 0xd23b2e);
-  for (const [x,z] of [[-9.5,33],[9.5,33],[-9.5,51],[9.5,51]]) { box('flower bed border',x,.15,z,6,.3,3,0x6d4c33,true); for (let i=0;i<3;i++) box('flower bed flowers',x-1.9+i*1.9,.31,z,1.9,.1,2.6,[0xe8833a,0x9a6fc0,0xd94f4f][i]); }
+  for (const [x,z] of [[-9.5,33],[9.5,33],[-9.5,51],[9.5,51]]) { box('flower bed border',x,.15,z,6,.3,3,0x6d4c33,true); for (let i=0;i<6;i++) box('flower bed flowers',x-2.375+i*.95,.31,z,.95,.1,2.6,[0xe8833a,0xd94f4f,0xffd76a,0x9a6fc0,0xd94f4f,0xe8833a][i]); }
   for (const [x,z] of [[-5.8,30],[5.8,30],[-5.8,54],[5.8,54]]) { box('bench seat',x,.55,z,2.2,.12,.55,0x9a6a42); box('bench back',x,.88,z+(z<42?-.27:.27),2.2,.5,.1,0x9a6a42); for(const dx of [-.8,.8]) box('bench leg',x+dx,.27,z,.12,.55,.12,0x59636b); colliders.push({bounds:{minX:x-1.1,maxX:x+1.1,minZ:z-.35,maxZ:z+.35}}); }
   const lampMat = new THREE.MeshLambertMaterial({color:0xffe9a8,emissive:0xffca55,emissiveIntensity:.9});
   for (const [x,z] of [[-16.5,28],[16.5,28],[-16.5,44],[16.5,44],[-16.5,56],[16.5,56]]) { const pole=new THREE.Mesh(new THREE.CylinderGeometry(.06,.08,3.6,10),mat(0x3f4a52));pole.name='plaza lamp post';pole.position.set(x,1.8,z);scene.add(pole);const head=new THREE.Mesh(new THREE.SphereGeometry(.22,12,8),lampMat);head.name='plaza lamp head';head.position.set(x,3.7,z);scene.add(head);colliders.push({bounds:{minX:x-.3,maxX:x+.3,minZ:z-.3,maxZ:z+.3}}); }
@@ -1070,6 +1130,92 @@
   }
   let last = performance.now();
   updateHUD();
+  box('canteen south glass', 76.5, 3.6, 86.3, 11, 3.4, .12, 0x8fb2c9).material = glassMat(Math.max(1, Math.round(11 / 6)), Math.max(1, Math.round(3.4 / 3)));
+  box('canteen south glass', 92.5, 3.6, 86.3, 9.5, 3.4, .12, 0x8fb2c9).material = glassMat(Math.max(1, Math.round(9.5 / 6)), Math.max(1, Math.round(3.4 / 3)));
+  scene.traverse(mesh => {
+    if (!mesh.isMesh) return;
+    const n = mesh.name || '';
+    const p = mesh.geometry && mesh.geometry.parameters;
+    const sx = p ? p.width : 20, sy = p ? p.height : 6, sz = p ? p.depth : 20;
+    const faceW = Math.max(sx, sz), faceH = sy;
+    const rx = Math.max(1, Math.round(faceW / 12)), ry = Math.max(1, Math.round(faceH / 13));
+    const floorRx = Math.max(1, Math.round(sx / 4.5)), floorRy = Math.max(1, Math.round(sz / 4.5));
+    if (n === 'main facade glass window' || n === 'main window sill' || n === 'wing glass window') { mesh.visible = false; return; }
+    if (n === 'canteen facade glass') { mesh.material = glassMat(Math.max(1, Math.round(faceW / 6)), Math.max(1, Math.round(sy / 3))); return; }
+    if (n === 'main school building' || n === 'school side wing') { mesh.material = texMat('facade', rx, ry, 0xffffff, 0xe9e2d4); return; }
+    if (n.startsWith('library ') && (n.includes('wall') || n.includes('stair cheek'))) { mesh.material = texMat('facade', rx, ry, 0xb9c4c9, 0xb9b3a8); return; }
+    if (n.startsWith('dorm') && n.includes('wall')) { mesh.material = texMat('facade', Math.max(1, Math.round(rx * 2)), Math.max(1, Math.round(ry * 2)), 0xffdfae, 0xd8c6a8); return; }
+    if (n.startsWith('admin ') && n.includes('wall')) { mesh.material = texMat('facade', rx, ry, 0xd9d2c2, 0xcfc8ba); return; }
+    if (n.startsWith('hall ') && n.includes('wall')) { mesh.material = texMat('facade', rx, ry, 0xe2bda6, 0xa85f4a); return; }
+    if (n.startsWith('activity ') && n.includes('wall')) { mesh.material = texMat('facade', rx, ry, 0xeadfc6, 0xd9a45e); return; }
+    if (n.startsWith('gym ') && n.includes('wall')) { mesh.material = texMat('facade', rx, ry, 0xc3d2da, 0xc7d3da); return; }
+    if (n.startsWith('lab ') && n.includes('wall')) { mesh.material = texMat('facade', rx, ry, 0xbcc9d1, 0x9fb2bd); return; }
+    if (n === 'campus grass floor') { mesh.material = texMat('grass', Math.max(1, Math.round(sx / 7)), Math.max(1, Math.round(sz / 7)), 0xffffff, 0x77b25a); return; }
+    if (n === 'corridor floor') { mesh.material = texMat('paving', 4, 3, 0xffffff, 0xc5dce0); return; }
+    if (n === 'plaza floor') { mesh.material = texMat('paving', floorRx, floorRy, 0xffffff, 0xd9c9a8); return; }
+    if (n.endsWith('path floor') || n === 'plaza axis floor') { mesh.material = texMat('paving', floorRx, floorRy, 0xffffff, 0xe6dcc2); }
+  });
+  // 第十步第二轮：建筑屋顶细节、绿化、入口扶手与斑马线（纯视觉，无碰撞）。
+  const roofStone = 0xbdb5a4, acColor = 0xb9c0c4, acGrille = 0x59636b;
+  function roofAc(x, y, z) {
+    box('roof ac unit', x, y, z, 1.15, .7, .75, acColor);
+    box('roof ac grille', x, y, z + .39, .72, .38, .035, acGrille);
+  }
+  // 教学楼主楼、两翼屋顶。
+  for (const z of [23.92,25.28]) box('roof parapet',0,16.32,z,22.4,.64,.24,roofStone);
+  for (const x of [-11.08,11.08]) box('roof parapet',x,16.32,24.6,.24,.64,1.6,roofStone);
+  const mainTank = new THREE.Mesh(new THREE.CylinderGeometry(1.05,1.05,1.5,14),mat(acColor)); mainTank.name='roof water tank'; mainTank.position.set(-7,16.75,24.6); scene.add(mainTank);
+  const mainTankLid = new THREE.Mesh(new THREE.CylinderGeometry(1.15,1.15,.12,14),mat(acColor)); mainTankLid.name='roof water tank lid'; mainTankLid.position.set(-7,17.55,24.6); scene.add(mainTankLid);
+  for (const x of [3.5,6,8.5]) roofAc(x,16.35,24.6);
+  for (const side of [-1,1]) {
+    const cx=side*18, inner=side*10, outer=side*26;
+    for (const z of [16.61,23.39]) box('roof parapet',cx,12.28,z,16,.55,.22,roofStone);
+    for (const x of [inner-.11,outer+.11]) box('roof parapet',x,12.28,20,.22,.55,6.78,roofStone);
+    roofAc(side*12.5,12.35,20);
+  }
+  // 图书馆屋顶设备。
+  const libraryTank = new THREE.Mesh(new THREE.CylinderGeometry(1.2,1.2,1.5,14),mat(acColor)); libraryTank.name='roof water tank'; libraryTank.position.set(70,9.45,30); scene.add(libraryTank);
+  const libraryTankLid = new THREE.Mesh(new THREE.CylinderGeometry(1.3,1.3,.12,14),mat(acColor)); libraryTankLid.name='roof water tank lid'; libraryTankLid.position.set(70,10.25,30); scene.add(libraryTankLid);
+  roofAc(88,9.05,32); roofAc(92,9.05,44);
+  // 三栋宿舍顶层女儿墙、空调与南立面阳台。
+  const dormRoofs = [{cx:43,width:26,left:30,right:56},{cx:73,width:26,left:60,right:86},{cx:96,width:16,left:88,right:104}];
+  for (const d of dormRoofs) {
+    for (const z of [102.22,123.78]) box('roof parapet',d.cx,19.1,z,d.width+.5,.55,.22,0xcbb693);
+    for (const x of [d.left-.22,d.right+.22]) box('roof parapet',x,19.1,113,.22,.55,22.5,0xcbb693);
+    roofAc(d.cx-4,18.95,112); roofAc(d.cx+4,18.95,115);
+    if (d.width-3>8) for (const y of [3.3,6.6,9.9,13.2,16.5]) {
+      box('dorm balcony slab',d.cx,y,124.55,d.width-3,.12,.8,0xcabfa8);
+      box('dorm balcony rail',d.cx,y+1.02,124.92,d.width-3,.07,.07,0x8a8378);
+    }
+  }
+  // 体育馆三层屋顶与实验楼顶板均为实体，补齐沿墙顶的女儿墙及屋顶设备。
+  for (const z of [94.22,117.78]) box('roof parapet',-19,10.28,z,30.4,.55,.22,0xd8e1e5);
+  for (const x of [-34.22,-3.78]) box('roof parapet',x,10.28,106,.22,.55,23.5,0xd8e1e5);
+  roofAc(-27,11.55,101); roofAc(-11,11.55,111);
+  for (const z of [24.22,43.78]) box('roof parapet',-80,13.38,z,24.5,.55,.22,0xb1c1c9);
+  for (const x of [-92.22,-67.78]) box('roof parapet',x,13.38,34,.22,.55,20.5,0xb1c1c9);
+  roofAc(-86,13.55,30); roofAc(-74,13.55,38);
+  // 会堂有实体屋顶。
+  for (const z of [85.78,107.22]) box('roof parapet',16,9.48,z,24.5,.55,.22,0x9b604e);
+  for (const x of [3.78,28.22]) box('roof parapet',x,9.48,96.5,.22,.55,21.5,0x9b604e);
+  roofAc(10,9.55,92); roofAc(22,9.55,101);
+  // 食堂入口两侧扶手。
+  for (const x of [82.55,87.45]) {
+    for (const z of [87,88.6]) box('canteen rail post',x,.45,z,.05,.9,.05,acGrille);
+    box('canteen rail bar',x,.92,87.8,.05,.06,1.9,acGrille);
+  }
+  // 教学楼雨棚前缘收边。
+  box('entrance canopy fascia',0,3.5,27.42,7.7,.34,.12,0x74452e);
+  // 湖岸柳树，独立网格，不调用会登记碰撞的 tree()。
+  function willow(x,z) {
+    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.13,.18,1.9,8),mat(0x7a5230)); trunk.name='willow trunk'; trunk.position.set(x,.95,z); scene.add(trunk);
+    const crown=new THREE.Mesh(new THREE.SphereGeometry(1.15,10,8),mat(0x5da34c)); crown.name='willow crown'; crown.scale.set(1.05,1.5,1.05); crown.position.set(x,3.2,z); scene.add(crown);
+    const crown2=new THREE.Mesh(new THREE.SphereGeometry(.8,10,8),mat(0x5da34c)); crown2.name='willow crown'; crown2.scale.set(1,1.4,1); crown2.position.set(x+.55,2.7,z+.2); scene.add(crown2);
+  }
+  for (const [x,z] of [[-35.5,105],[-35.5,119],[-50,122.8]]) willow(x,z);
+  // 校门与广场南口斑马线。
+  for (const z of [121.6,122.4,123.2,124]) box('zebra stripe',0,-.165,z,6.4,.015,.55,0xf5f2ea);
+  for (const z of [54.6,55.4,56.2,57]) box('zebra stripe',0,-.105,z,5.6,.015,.55,0xf5f2ea);
   scene.traverse(o => { if (!o.isMesh) return; o.receiveShadow = true; const n = o.name || ''; o.castShadow =!(n.includes('ceiling') || n.includes('wall') || n.includes('floor') || n.includes('glass') || n.includes('sign') || n.includes('skyline') || n.includes('cloud')) &&!(o.material && o.material.isMeshBasicMaterial);});
   function animate(now) {
     requestAnimationFrame(animate);
