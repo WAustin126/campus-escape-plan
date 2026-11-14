@@ -143,29 +143,31 @@
     try {
       entry.tex = new THREE.TextureLoader().load(url, tex => {
         tex.colorSpace = THREE.SRGBColorSpace; tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-        tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestMipmapLinearFilter || THREE.NearestFilter;
-        try { tex.anisotropy = renderer.capabilities.getMaxAnisotropy(); } catch (_) { tex.anisotropy = 4; }
+        tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearMipmapLinearFilter; tex.generateMipmaps = true;
+        try { tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); } catch (_) { tex.anisotropy = 4; }
         entry.loaded = true;
         entry.waiters.forEach(fn => fn(tex));
       }, undefined, () => {});
     } catch (_) {}
     return entry;
   }
-  function texMat(key, rx, ry, tintHex, fallbackColor) {
-    const material = new THREE.MeshLambertMaterial({ color: fallbackColor });
-    const apply = tex => { const clone = tex.clone(); clone.repeat.set(rx, ry); clone.needsUpdate = true; material.map = clone; material.color.setHex(tintHex); material.needsUpdate = true; };
+  function texMat(key, rx, ry, tintHex = 0xffffff, fallbackColor) {
+    const params = { 'real-deskwood':[18,0x333333], 'real-floor':[42,0x555555], 'real-marble':[42,0x555555], 'real-tile':[42,0x555555], facade:[4,0x111111], paving:[4,0x111111], 'real-wall':[4,0x111111], 'real-carpet':[4,0x111111], 'real-fabric':[4,0x111111], 'real-leaves':[4,0x111111], 'real-bark':[4,0x111111], 'real-books':[4,0x111111], 'real-paper':[4,0x111111], 'real-blackboard':[10,0x222222], 'real-door':[22,0x333333], 'real-screen':[30,0x444444], grass:[0,0x000000] };
+    const setting = params[key] || [8,0x1a1a1a];
+    const material = new THREE.MeshPhongMaterial({ color: fallbackColor, shininess: setting[0], specular: setting[1] });
+    const apply = tex => { const clone = tex.clone(); clone.repeat.set(rx, ry); clone.needsUpdate = true; material.map = clone; material.color.setHex(tintHex === undefined ? 0xffffff : tintHex); material.needsUpdate = true; };
     const entry = texLib[key];
     if (entry) { if (entry.loaded) apply(entry.tex); else entry.waiters.push(apply); }
     return material;
   }
   function glassMat(rx, ry) {
-    const material = new THREE.MeshLambertMaterial({ color: 0x8fb2c9, emissive: 0xcc8433, emissiveIntensity: .38, transparent: true, opacity: .82 });
+    const material = new THREE.MeshPhongMaterial({ color: 0x8fb2c9, transparent: true, opacity: .45 });
     const apply = tex => { const clone = tex.clone(); clone.repeat.set(rx, ry); clone.needsUpdate = true; material.map = clone; material.needsUpdate = true; };
-    const entry = texLib['vox-glass'];
+    const entry = texLib['glass'];
     if (entry) { if (entry.loaded) apply(entry.tex); else entry.waiters.push(apply); }
     return material;
   }
-  for (const key of ['grass','stonebrick','planks','bookshelf','cobble','glass','brick','plaster','concrete','tile','log','leaves','dirt','water','blackboard','door']) loadTex('vox-'+key, 'assets/tex/vox-'+key+'.png');
+  for (const [key,url] of [['facade','assets/tex/facade-teaching.webp'],['glass','assets/tex/glass-canteen.webp'],['grass','assets/tex/grass.webp'],['paving','assets/tex/paving.webp'],['real-deskwood','assets/tex/real-deskwood.jpg'],['real-carpet','assets/tex/real-carpet.jpg'],['real-wall','assets/tex/real-wall.jpg'],['real-blackboard','assets/tex/real-blackboard.jpg'],['real-floor','assets/tex/real-floor.png'],['real-tile','assets/tex/real-tile.png'],['real-marble','assets/tex/real-marble.png'],['real-books','assets/tex/real-books.png'],['real-door','assets/tex/real-door.png'],['real-fabric','assets/tex/real-fabric.png'],['real-bark','assets/tex/real-bark.png'],['real-leaves','assets/tex/real-leaves.png'],['real-water','assets/tex/real-water.png'],['real-paper','assets/tex/real-paper.png'],['real-screen','assets/tex/real-screen.png']]) loadTex(key,url);
   const colliders = [];
   function addColliderBounds(minX, maxX, minZ, maxZ, y0, y1) { colliders.push({ bounds:{minX,maxX,minZ,maxZ}, y0, y1 }); }
   function box(name, x, y, z, sx, sy, sz, color, solid = false, y0, y1) {
@@ -178,7 +180,7 @@
   const B1={y0:-.6,y1:1.9}, B2={y0:1.7,y1:5.6};
   const HOOP_POS = { x:-48.6, z:79 }, HOOP_TRIGGER_RADIUS = 2.6;
   function wall(name,x,y,z,sx,sy,sz,floor=0,color=0xf0c987){box(name,x,y,z,sx,sy,sz,color);addColliderBounds(x-sx/2,x+sx/2,z-sz/2,z+sz/2,...(floor? [B2.y0,B2.y1]:[B1.y0,B1.y1]));}
-  function makeDoor(label,z,hingeX,direction,axis='z',y=0){const pivot=new THREE.Group();const plane=z,hinge=hingeX;if(axis==='x')pivot.position.set(plane,y,hinge);else pivot.position.set(hingeX,y,z);scene.add(pivot);const width=DOOR_WIDTH;const leaf=new THREE.Mesh(axis==='x'?new THREE.BoxGeometry(.18,2.95,width):new THREE.BoxGeometry(width,2.95,.18),texMat('vox-door',1,2,0xffffff,0x8e5638)); leaf.name='person door leaf';if(axis==='x')leaf.position.set(0,1.475,direction*width/2);else leaf.position.set(direction*width/2,1.475,0);pivot.add(leaf);const handle=new THREE.Mesh(new THREE.SphereGeometry(.075,12,8),mat(0xf5d66f));if(axis==='x')handle.position.set(direction*.12,1.45,direction*(width-.22));else handle.position.set(direction*(width-.22),1.45,direction>0?.12:-.12);pivot.add(handle);const door={label,pivot,floorY:y,z:axis==='x'?hinge: z,hingeX:axis==='x'?plane:hingeX,direction,open:false,passable:false,width,cachedBounds:null,axis,plane,hinge};door.cx=axis==='x'?plane:hinge+direction*width/2;door.cz=axis==='x'?hinge+direction*width/2:plane;door.collider={door};colliders.push(door.collider);return door;}
+  function makeDoor(label,z,hingeX,direction,axis='z',y=0){const pivot=new THREE.Group();const plane=z,hinge=hingeX;if(axis==='x')pivot.position.set(plane,y,hinge);else pivot.position.set(hingeX,y,z);scene.add(pivot);const width=DOOR_WIDTH;const leaf=new THREE.Mesh(axis==='x'?new THREE.BoxGeometry(.18,2.95,width):new THREE.BoxGeometry(width,2.95,.18),texMat('real-door',1,1)); leaf.name='person door leaf';if(axis==='x')leaf.position.set(0,1.475,direction*width/2);else leaf.position.set(direction*width/2,1.475,0);pivot.add(leaf);const handle=new THREE.Mesh(new THREE.SphereGeometry(.075,12,8),mat(0xf5d66f));if(axis==='x')handle.position.set(direction*.12,1.45,direction*(width-.22));else handle.position.set(direction*(width-.22),1.45,direction>0?.12:-.12);pivot.add(handle);const door={label,pivot,floorY:y,z:axis==='x'?hinge: z,hingeX:axis==='x'?plane:hingeX,direction,open:false,passable:false,width,cachedBounds:null,axis,plane,hinge};door.cx=axis==='x'?plane:hinge+direction*width/2;door.cz=axis==='x'?hinge+direction*width/2:plane;door.collider={door};colliders.push(door.collider);return door;}
   function makeSign(text,w,h,bg,fg){const canvas=document.createElement('canvas');canvas.width=512;canvas.height=Math.round(512*h/w);const ctx=canvas.getContext('2d');ctx.fillStyle=bg;ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle=fg;ctx.font=`bold ${Math.round(canvas.height*.58)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,canvas.width/2,canvas.height/2);const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;const mesh=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:texture,side:THREE.DoubleSide}));mesh.name=`sign ${text}`;return mesh;}
   function addSign(text,w,h,bg,fg,x,y,z,rotationY=0){const sign=makeSign(text,w,h,bg,fg);sign.position.set(x,y,z);sign.rotation.y=rotationY;scene.add(sign);return sign;}
   function floorTile(name,x,z,sx,sz,y=0,color=0xe8d8ad){box(name,x,y-.12,z,sx,.24,sz,color);}
@@ -250,22 +252,58 @@
   wall('north exterior wall',0,3.6,-23,20,7.2,.35);
   box('teaching roof',0,7.35,-8.1,20,.3,29.8,0xe4ddca);
   // Class furnishings and bounded furniture colliders.
+  const metalMat = new THREE.MeshPhongMaterial({ color: 0x9aa0a6, shininess: 70, specular: 0x999999 });
+  const cabinetMat = new THREE.MeshPhongMaterial({ color: 0xb9bec4, shininess: 50, specular: 0x777777 });
+  const aoMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: .2, depthWrite: false });
+  const sunMat = new THREE.MeshBasicMaterial({ color: 0xffdf9e, transparent: true, opacity: .13, depthWrite: false });
+  function aoPad(x, z, w, d, y) { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), aoMat); m.rotation.x = -Math.PI/2; m.position.set(x, y + .02, z); m.name = 'ao pad'; scene.add(m); }
+  function sunPatch(x, z, w, d, y, rot) { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), sunMat); m.rotation.x = -Math.PI/2; m.rotation.z = rot; m.position.set(x, y + .015, z); m.name = 'sun patch'; scene.add(m); }
+  const proBox=(name,x,y,z,sx,sy,sz,material,rx=0,ry=0,rz=0)=>{const m=box(name,x,y,z,sx,sy,sz,0xffffff);m.material=material;m.rotation.set(rx,ry,rz);return m;};
+  const proCylinder=(name,x,y,z,r1,r2,h,material,segments=10)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,segments),material);m.name=name;m.position.set(x,y,z);scene.add(m);return m;};
   function deskSet(x,z,y=0,band=B1,name='desk'){box(name+' top',x,y+1.45,z,1.35,.16,.72,0xd59a55);for(const dx of [-.55,.55])for(const dz of [-.27,.27])box(name+' leg',x+dx,y+.72,z+dz,.1,1.35,.1,0x8f603a);box(name+' chair seat',x,y+.76,z+.82,.68,.14,.55,0x4d9ab0);box(name+' chair back',x,y+1.2,z+1.08,.68,.82,.1,0x4d9ab0);addColliderBounds(x-.72,x+.72,z-.4,z+1.15,band.y0,band.y1);}
+  function deskSetPro(x,z){
+    proBox('pro desk top',x,1.47,z,1.5,.07,.8,texMat('real-deskwood',1,1));
+    proBox('pro desk drawer',x,1.16,z-.02,1.05,.5,.55,mat(0x2e2a26));
+    proBox('pro desk drawer front',x,1.16,z-.33,1.05,.5,.04,texMat('real-deskwood',1,1,0xa8895e));
+    proBox('pro desk handle',x,1.16,z-.37,.18,.03,.03,metalMat);
+    for(const dx of [-.62,.62])for(const dz of [-.28,.28])proBox('pro desk leg',x+dx,.72,z+dz,.06,1.44,.06,metalMat);
+    proBox('pro chair seat',x,.78,z+.8,.62,.06,.55,texMat('real-deskwood',1,1));proBox('pro chair back',x,1.22,z+1.07,.62,.6,.06,texMat('real-deskwood',1,1));
+    for(const dx of [-.24,.24])for(const dz of [-.2,.2])proBox('pro chair leg',x+dx,.375,z+.8+dz,.05,.75,.05,metalMat);
+    const i=deskSetPro.index++;if(i%2===0)proBox('pro book',x-.25,1.53,z,.34,.05,.24,mat([0x7a4a3a,0x3a5a7a,0x4a7a4a,0x8a7a3a,0x5a4a7a][i%5]));else if(i%4===1)proCylinder('pro cup',x+.4,1.57,z+.1,.05,.045,.12,mat(Math.floor(i/4)%2===0?0xd8d8d8:0x7ab0d8));
+    aoPad(x,z+.35,2.0,2.0,0);addColliderBounds(x-.72, x+.72, z-.4, z+1.15, B1.y0, B1.y1);
+  }deskSetPro.index=0;
   // 主教室A 5x4座位。
-  for(const z of [-7.4,-4.9,-2.4,.1,2.6])for(const x of [-4.3,-1.4,1.5,4.4])deskSet(x,z);
+  for(const z of [-7.4,-4.9,-2.4,.1,2.6])for(const x of [-4.3,-1.4,1.5,4.4])deskSetPro(x,z);
   // A/C 的三乘三课桌、板书、窗帘与静态吊扇。
   for(const [label,x0,x1,floor,band] of [['A',2.4,10,0,B1],['C',2.4,10,3.6,B2]]){for(let row=0;row<3;row++)for(let col=0;col<3;col++)deskSet(x0+1.35+col*2.15,-21.1+row*2.05,floor,band,label+' classroom desk');box(label+' classroom blackboard',(x0+x1)/2,floor+2.65,-22.82,x1-x0-1.2,1.7,.12,0x176d4b);box(label+' curtain left',x0+.35,floor+2.1,-22.55,.12,3.8,1.1,0x7a9e7e);box(label+' curtain right',x1-.35,floor+2.1,-22.55,.12,3.8,1.1,0x7a9e7e);const fan=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,.12,10),mat(0x59636b));fan.name=label+' static ceiling fan';fan.position.set((x0+x1)/2,floor+5.75,-19);scene.add(fan);}
   for(const [label,x0,x1,floor,band] of [['A',2.4,10,0,B1],['C',2.4,10,3.6,B2]]){box(label+' podium',(x0+x1)/2,floor+.6,-22,1.4,1.2,.8,0xc47a42);addColliderBounds((x0+x1)/2-.7,(x0+x1)/2+.7,-22.4,-21.6,band.y0,band.y1);}
   box('blackboard',.15,3.25,-10.94,7.2,2.2,.14,0x176d4b);box('board frame top',.15,4.39,-10.82,7.5,.12,.2,0xd7a94f);box('board frame bottom',.15,2.11,-10.82,7.5,.12,.2,0xd7a94f);box('podium',0,.65,-9.2,2.1,1.3,1.1,0xc47a42);addColliderBounds(-1.05,1.05,-9.75,-8.65,B1.y0,B1.y1);
+  const screenMat=texMat('real-screen',1,1);screenMat.emissive=new THREE.Color(0x555f66);
+  proBox('pro podium screen',0,1.66,-9.38,.78,.48,.05,screenMat,-.1);proBox('pro podium stand',0,1.42,-9.36,.12,.3,.12,mat(0x2a2c2e));proBox('pro podium keyboard',0,1.33,-9,.6,.03,.22,mat(0x2a2c2e));aoPad(0,-9.2,2.6,1.6,0);
+  for(const [x,y,sx,sy] of [[.15,4.39,7.5,.09],[.15,2.11,7.5,.09],[-3.5,3.25,.09,2.3],[3.8,3.25,.09,2.3]])proBox('pro board frame',x,y,-10.79,sx,sy,.05,metalMat);
+  proBox('pro chalk tray',.15,2,-10.78,7.2,.05,.14,metalMat);for(const x of [-1,1.2])proBox('pro chalk',x,2.06,-10.78,.14,.025,.025,mat(0xffffff));
   for(const [x,y,w] of [[-2,3.5,1.5],[.2,3.15,2.2],[2.4,3.65,1.2]])box('blackboard chalk trace',x,y,-10.84,w,.035,.025,0xd8e6d4);
-  for(const x of [-4.2,0,4.2]){box('class south window',x,2.8,6.58,1.8,1.15,.04,0x8fb2c9);box('class south curtain',x-1.05,2.8,6.52,.24,2.2,.12,0x7a9e7e);box('class south curtain',x+1.05,2.8,6.52,.24,2.2,.12,0x7a9e7e);}
+  for(const x of [-4.2,0,4.2]){box('class south window',x,2.8,6.58,1.8,1.15,.04,0x8fb2c9);box('class south curtain',x-1.05,2.8,6.52,.24,2.2,.12,0x7a9e7e);box('class south curtain',x+1.05,2.8,6.52,.24,2.2,.12,0x7a9e7e);proBox('pro window mullion',x,2.8,6.58,.07,1.15,.09,metalMat);proBox('pro window mullion',x,2.8,6.58,1.8,.07,.09,metalMat);}
+  proBox('pro bulletin',2.1,2.6,6.63,2.2,1.5,.05,texMat('real-paper',1,1));for(const [x,y,sx,sy] of [[2.1,3.38,2.3,.06],[2.1,1.82,2.3,.06],[.97,2.6,.06,1.6],[3.23,2.6,.06,1.6]])proBox('pro bulletin frame',x,y,6.63,sx,sy,.06,mat(0x6a4a2e));
+  for(const fz of [-6,2]){proCylinder('pro fan rod',0,3.35,fz,.03,.03,.5,mat(0x59636b),8);proCylinder('pro fan hub',0,3.08,fz,.14,.14,.1,mat(0x59636b),12);for(const a of [0,2.094,4.189]){const blade=new THREE.Mesh(new THREE.BoxGeometry(1.15,.03,.2),mat(0xd8d5cc));blade.geometry.translate(.68,0,0);blade.name='pro fan blade';blade.position.set(0,3.08,fz);blade.rotation.y=a;scene.add(blade);}proCylinder('pro fan pull',.1,2.8,fz,.012,.012,.45,mat(0x8a8578),6);}
+  for(const x of [-4.2,0,4.2])sunPatch(x,4.4,2.6,3.4,0,.5);
   // 2F blackboard and three tier media seating.
   box('D blackboard',-2.65,6.85,-10.94,4.5,1.7,.14,0x176d4b);for(let row=0;row<4;row++)for(let col=0;col<2;col++)deskSet(-4.1+col*2.2,-7.3+row*3.1,3.6,B2,'D desk');
   box('multimedia screen',3.4,6.65,-10.98,4.2,2.1,.12,0x222d3d);for(let tier=0;tier<3;tier++){const tz=-8.2+tier*2.3;box('media tier',3.4,3.75+tier*.28,tz,5.2,.3,1.35,0x9b9589);for(let col=0;col<4;col++){const x=1.25+col*1.43,z=-8.35+tier*2.3;box('media seat',x,4.18+tier*.28,z,.9,.34,.55,0x4d6a88);}}
   for(let i=0;i<5;i++){const x=-9.55+i*.72;box('D wing bookshelf',x,5.15,5.9,.62,2.9,.45,0x8a6a48);addColliderBounds(x-.34,x+.34,5.65,6.15,B2.y0,B2.y1);}for(let i=0;i<18;i++)box('D bookshelf book',-9.55+(i%5)*.72,4.1+Math.floor(i/5)*.58,5.62,.4,.42,.16,[0x3f6fb5,0xc0533f,0x7a9e7e,0xd9a441][i%4]);
   // North room interiors: workstation, meeting room, restrooms and hallway utility details.
-  for(const x of [-2.5,.3])for(const z of [-19.8,-17]){box('office workstation',x,.74,z,1.45,.12,.75,0xa8895e);box('office monitor',x,1.25,z-.28,.58,.6,.08,0x33404a);addColliderBounds(x-.8,x+.8,z-.45,z+.5,B1.y0,B1.y1);}
-  for(const x of [-3.1,1.6]){box('office filing cabinet',x,1.1,-21.2,.7,2.2,.7,0x7a8894);addColliderBounds(x-.4,x+.4,-21.6,-20.8,B1.y0,B1.y1);}for(const x of [-4.2,2]){const p=new THREE.Mesh(new THREE.SphereGeometry(.4),mat(0x4e8f3f));p.position.set(x,.9,-20);scene.add(p);}
+  function officeDeskPro(x,z){
+    proBox('pro office desk',x,.78,z,1.7,.07,.8,texMat('real-deskwood',1,1));proBox('pro office cabinet',x-.6,.36,z,.45,.68,.7,texMat('real-deskwood',1,1,0xa8895e));
+    for(const y of [.18,.38,.58]){proBox('pro office drawer',x-.6,y,z+.36,.4,.18,.03,mat(0xcfc8ba));proBox('pro office handle',x-.6,y,z+.385,.12,.02,.02,metalMat);}
+    proBox('pro office panel',x,.5,z-.36,1.6,.45,.04,texMat('real-deskwood',1,1,0xa8895e));proBox('pro office chair',x+.1,.5,z+.95,.55,.07,.5,mat(0x3a3f45));proBox('pro office chair',x+.1,1.05,z+1.2,.55,.68,.07,mat(0x3a3f45),-.08);
+    proCylinder('pro office chair',x+.1,.26,z+.95,.04,.04,.45,metalMat);proCylinder('pro office chair',x+.1,.04,z+.95,.3,.32,.05,metalMat);
+    for(const [dx,ry] of [[-.35,.18],[.35,-.18]]){const sm=texMat('real-screen',1,1);sm.emissive=new THREE.Color(0x555f66);proBox('pro monitor screen',x+dx,1.15,z-.18,.62,.38,.04,sm,0,ry);proBox('pro monitor stand',x+dx,.95,z-.16,.1,.28,.1,mat(0x2a2c2e));}
+    proBox('pro keyboard',x,.83,z+.15,.5,.025,.18,mat(0x2a2c2e));proBox('pro pc tower',x+.65,.27,z,.22,.5,.45,mat(0x24262a));proBox('pro paper stack',x-.5,.84,z+.15,.3,.04,.22,mat(0xf2f0e8),0,.2);proBox('pro paper stack',x+.55,.84,z+.2,.3,.04,.22,mat(0xf2f0e8),0,-.15);proBox('pro calendar',x+.15,.92,z-.05,.16,.2,.03,texMat('real-paper',1,1),-.25);
+    aoPad(x,z+.2,2.3,1.9,0);
+  }
+  for(const x of [-2.5,.3])for(const z of [-19.8,-17]){officeDeskPro(x,z);addColliderBounds(x-.8,x+.8,z-.45,z+.5,B1.y0,B1.y1);}
+  for(const x of [-3.1,1.6]){proBox('pro cabinet body',x,1.1,-21.2,.7,2.2,.7,cabinetMat);proBox('pro cabinet seam',x,1.05,-20.83,.025,1.9,.02,mat(0x6a6e73));for(const dx of [-.09,.09])proBox('pro cabinet handle',x+dx,1.05,-20.82,.03,.3,.03,metalMat);aoPad(x,-21.2,1,1,0);addColliderBounds(x-.4,x+.4,-21.6,-20.8,B1.y0,B1.y1);}for(const x of [-4.2,2]){const p=new THREE.Mesh(new THREE.SphereGeometry(.4),mat(0x4e8f3f));p.position.set(x,.9,-20);scene.add(p);}
+  proBox('pro office carpet',-.7,.015,-18.8,5.9,.03,8.1,texMat('real-carpet',3,4));proBox('pro office frame',2.26,2.1,-17,.95,.7,.05,mat(0x6a4a2e),0,-Math.PI/2);const officePic=new THREE.Mesh(new THREE.PlaneGeometry(.8,.55),mat(0x7a9a8a));officePic.name='pro office picture';officePic.position.set(2.22,2.1,-17);officePic.rotation.y=-Math.PI/2;scene.add(officePic);proBox('pro office rules',-3.66,2.1,-19.5,1.1,.8,.04,texMat('real-paper',1,1),0,Math.PI/2);
   box('faculty meeting table',-.7,4.42,-19,4,.12,1.3,0x8a6a48);addColliderBounds(-2.75,1.35,-19.7,-18.3,B2.y0,B2.y1);for(let i=0;i<8;i++){const x=-2.7+(i%4)*1.35,z=i<4?-20:-18;box('faculty meeting chair',x,4.05,z,.5,.75,.5,0x4d6a88);addColliderBounds(x-.3,x+.3,z-.3,z+.3,B2.y0,B2.y1);}box('faculty whiteboard',-.7,6.4,-22.75,3.8,1.5,.08,0xeef1ed);box('faculty projector screen',-.7,6.4,-15,3.8,1.5,.08,0x33404a);
   function restroom(prefix,x0,x1,z0,floor,band){for(let i=0;i<3;i++){const x=x0+.65+i*.82;box(prefix+' stall partition',x,floor+1.1,z0+1.6,.08,2.2,2.6,0xe8e1d5);box(prefix+' toilet',x-.35,floor+.35,z0+1.4,.48,.7,.65,0xf4f2ed);addColliderBounds(x-.65,x-.05,z0+1.05,z0+1.8,band.y0,band.y1);}for(let i=0;i<2;i++){const x=x0+1+i*1.3;box(prefix+' sink',x,floor+.9,z0+5,.9,.18,.45,0xdde4e4);box(prefix+' mirror',x,floor+2,z0+5.3,.85,1,.06,0x8fb2c9);addColliderBounds(x-.5,x+.5,z0+4.7,z0+5.3,band.y0,band.y1);}if(prefix.includes('男卫'))for(let i=0;i<2;i++){const x=x0+1.15+i*.95;box(prefix+' urinal',x,floor+1,z0+7.3,.48,1,.28,0xe9eeee);addColliderBounds(x-.28,x+.28,z0+7.1,z0+7.5,band.y0,band.y1);}box(prefix+' mop basin',x1-.5,floor+.5,z0+7,.7,1,.7,0x9ba6a5);}
   for(const [prefix,x0,x1] of [['1F男卫',-10,-6.9],['1F女卫',-6.9,-3.8],['2F男卫',-10,-6.9],['2F女卫',-6.9,-3.8]])restroom(prefix,x0,x1,-23,prefix.startsWith('2F')?3.6:0,prefix.startsWith('2F')?B2:B1);
@@ -276,6 +314,7 @@
   box('lobby notice board',9.8,2,13.5,.08,2,4,0x37474f);for(let i=0;i<4;i++)box('lobby poster',9.72,1.5+(i%2)*.9,12.6+Math.floor(i/2)*1.8,.04,.65,.85,[0xe8833a,0x4d9ab0,0xd94f4f,0x7a9e7e][i]);box('lobby culture board',-9.8,2,16,.08,2,4,0x5a4632);for(let i=0;i<4;i++)box('lobby poster',-9.72,1.5+(i%2)*.9,15.1+Math.floor(i/2)*1.8,.04,.65,.85,[0x9a6fc0,0xd9a441,0x3f6fb5,0xc0533f][i]);
   for(const [x,z] of [[8.2,16],[-8.2,17]]){box('lobby bench seat',x,.55,z,.55,.12,2.2,0x9a6a42);box('lobby bench back',x+(x>0?.32:-.32),.88,z,.1,.5,2.2,0x9a6a42);addColliderBounds(x-.4,x+.4,z-1.1,z+1.1,B1.y0,B1.y1);}
   for(const [x,z] of [[-9,10],[9,10],[-9,21],[9,21]]){box('lobby planter',x,.25,z,.7,.5,.7,0x6d4c33);addColliderBounds(x-.4,x+.4,z-.4,z+.4,B1.y0,B1.y1);const shrub=new THREE.Mesh(new THREE.SphereGeometry(.5),mat(0x4e8f3f));shrub.position.set(x,.95,z);scene.add(shrub);}
+  sunPatch(0,20.2,3.2,4.2,0,.3);sunPatch(3.4,19.2,2.6,3.6,0,.3);
   addSign('教学楼大厅',3.4,.8,'#3d5a73','#ffffff',0,4.35,22.78,Math.PI);addSign('楼层导览 · 1F 大厅 / 2F 教室',3,.65,'#3d5a73','#ffffff',9.72,2.6,19.6,-Math.PI/2);
   // 校园外围、教学楼立面与远景。
   box('campus grass floor', 5, -.3, 72.5, 200, .24, 105, 0x77b25a);
@@ -304,7 +343,7 @@
   const lampMat = new THREE.MeshLambertMaterial({color:0xffe9a8,emissive:0xffca55,emissiveIntensity:.9});
   for (const [x,z] of [[-16.5,28],[16.5,28],[-16.5,44],[16.5,44],[-16.5,56],[16.5,56]]) { const pole=new THREE.Mesh(new THREE.CylinderGeometry(.06,.08,3.6,10),mat(0x3f4a52));pole.name='plaza lamp post';pole.position.set(x,1.8,z);scene.add(pole);const head=new THREE.Mesh(new THREE.SphereGeometry(.22,12,8),lampMat);head.name='plaza lamp head';head.position.set(x,3.7,z);scene.add(head);colliders.push({bounds:{minX:x-.3,maxX:x+.3,minZ:z-.3,maxZ:z+.3}}); }
   for (const x of [-4.6,4.6]) { const bin=new THREE.Mesh(new THREE.CylinderGeometry(.26,.24,.68,12),mat(0x3e7d4e));bin.name='campus trash bin';bin.position.set(x,.34,30);scene.add(bin);colliders.push({bounds:{minX:x-.3,maxX:x+.3,minZ:29.7,maxZ:30.3}}); }
-  function tree(x,z) { const trunk=new THREE.Mesh(new THREE.BoxGeometry(.34,1.7,.34),texMat('vox-log',1,2,0xffffff,0x7a5230));trunk.name='campus tree trunk';trunk.position.set(x,.85,z);scene.add(trunk);for(const [w,h,d,ox,oy,oz] of [[2.2,1.8,2.2,0,2.6,0],[1.5,.9,1.5,0,3.75,0],[1.2,1.2,1.2,.75,3.15,.15]]){const leaf=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),texMat('vox-leaves',1,1,0xffffff,0x4e8f3f));leaf.name='campus tree crown';leaf.position.set(x+ox,oy,z+oz);scene.add(leaf);}colliders.push({bounds:{minX:x-.32,maxX:x+.32,minZ:z-.32,maxZ:z+.32}}); }
+  function tree(x,z) { const trunk=new THREE.Mesh(new THREE.BoxGeometry(.34,1.7,.34),texMat('real-bark',1,2,0xffffff,0x7a5230));trunk.name='campus tree trunk';trunk.position.set(x,.85,z);scene.add(trunk);for(const [w,h,d,ox,oy,oz] of [[2.2,1.8,2.2,0,2.6,0],[1.5,.9,1.5,0,3.75,0],[1.2,1.2,1.2,.75,3.15,.15]]){const leaf=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),texMat('real-leaves',1,1,0xffffff,0x4e8f3f));leaf.name='campus tree crown';leaf.position.set(x+ox,oy,z+oz);scene.add(leaf);}colliders.push({bounds:{minX:x-.32,maxX:x+.32,minZ:z-.32,maxZ:z+.32}}); }
   for (const [x,z] of [[-15,31],[15,31],[-15,41],[15,41],[-15,51],[15,51],[-8,60],[8,60],[-20,60],[20,60]]) tree(x,z);
 
   // 食堂与图书馆：东侧新址。
@@ -326,6 +365,7 @@
   const readingLampMat=new THREE.MeshLambertMaterial({color:0xe8f4ff,emissive:0xcfe4ff,emissiveIntensity:.85});
   for(const z of [31,47]){box('library reading table',81,.78,z,1.3,.09,4.4,0x8a6a48);for(const dz of [-1.9,1.9])box('library reading table leg',81,.38,z+dz,.12,.75,1.1,0x6e5638);for(const dz of [-1.4,0,1.4]){const lamp=new THREE.Mesh(new THREE.BoxGeometry(.16,.22,.16),readingLampMat);lamp.name='library reading lamp';lamp.position.set(81,.94,z+dz);scene.add(lamp);}colliders.push({bounds:{minX:80.2,maxX:81.8,minZ:z-2.25,maxZ:z+2.25}});}
   const libraryLight=new THREE.PointLight(0xd6e6ff,26,38); libraryLight.position.set(81,3.6,39); scene.add(libraryLight); tree(56,28); tree(56,50);
+  for(const [x,z] of [[77,35],[85,35],[77,43],[85,43]])aoPad(x,z,3.7,2.1,0);
 
   const canteenWall=0x6b655c;
   box('canteen west lower frame',70,.6,73,.35,1.2,26,canteenWall,true); box('canteen west upper frame',70,6.9,73,.35,1.4,26,canteenWall,true);
@@ -340,7 +380,7 @@
   box('canteen path floor',85,-.25,94,3.5,.25,12,0xe6dcc2);box('canteen interior floor',84,-.24,73,27,.25,25,0xe3cf9f);
   box('canteen serving counter',95.2,.55,73,3.4,1.1,18,0xb08954,true);box('canteen counter top',95.2,1.16,73,3.8,.1,18.6,0x8a6a42);const canteenGuard=new THREE.Mesh(new THREE.BoxGeometry(.06,.85,18),canteenGlassMat);canteenGuard.name='canteen glass guard';canteenGuard.position.set(93.55,1.8,73);scene.add(canteenGuard);
   for(const z of [66,73,80]){const sign=makeSign('今日菜单',1.7,.85,'#37474f','#ffecb3');sign.position.set(97.75,2.7,z);sign.rotation.y=-Math.PI/2;scene.add(sign);}
-  for(const [x,z] of [[76,66],[76,73],[76,80],[86,66],[86,73],[86,80]]){box('canteen dining table',x,.78,z,1.7,.08,1,0xd9b380);box('canteen table leg',x,.38,z,.12,.75,.12,0x8a6a42);for(const side of [-1,1])box('canteen chair',x+side*1.05,.25,z,.45,.5,.45,0x7a9e7e);colliders.push({bounds:{minX:x-1.3,maxX:x+1.3,minZ:z-.55,maxZ:z+.55}});}
+  for(const [x,z] of [[76,66],[76,73],[76,80],[86,66],[86,73],[86,80]]){box('canteen dining table',x,.78,z,1.7,.08,1,0xd9b380);box('canteen table leg',x,.38,z,.12,.75,.12,0x8a6a42);for(const side of [-1,1])box('canteen chair',x+side*1.05,.25,z,.45,.5,.45,0x7a9e7e);colliders.push({bounds:{minX:x-1.3,maxX:x+1.3,minZ:z-.55,maxZ:z+.55}});aoPad(x,z,2.9,1.5,0);}
   const canteenLampMat=new THREE.MeshLambertMaterial({color:0xffe2b0,emissive:0xffbe78,emissiveIntensity:1});for(const [x,z] of [[80,66],[88,66],[80,80],[88,80]]){box('canteen lamp rod',x,3.6,z,.04,1.2,.04,0x555049);const lamp=new THREE.Mesh(new THREE.SphereGeometry(.16),canteenLampMat);lamp.name='canteen lamp';lamp.position.set(x,2.95,z);scene.add(lamp);}for(const z of [66,80]){const light=new THREE.PointLight(0xffd9a0,30,34);light.position.set(84,3.4,z);scene.add(light);}
 
   // 西侧实验楼。
@@ -1174,35 +1214,22 @@
   box('canteen south glass', 76.5, 3.6, 86.3, 11, 3.4, .12, 0x8fb2c9).material = glassMat(Math.max(1, Math.round(11 / 6)), Math.max(1, Math.round(3.4 / 3)));
   box('canteen south glass', 92.5, 3.6, 86.3, 9.5, 3.4, .12, 0x8fb2c9).material = glassMat(Math.max(1, Math.round(9.5 / 6)), Math.max(1, Math.round(3.4 / 3)));
   scene.traverse(mesh => {
-    if (!mesh.isMesh || !mesh.name || mesh.name.startsWith('person')) return;
-    const n=mesh.name.toLowerCase(), p=mesh.geometry&&mesh.geometry.parameters;
-    const sx=p?p.width:4, sy=p?p.height:3, sz=p?p.depth:4;
-    const rw=Math.max(1,Math.round(Math.max(sx,sz)/4)), rh=Math.max(1,Math.round(sy/4));
-    const fx=Math.max(1,Math.round(sx/6)), fz=Math.max(1,Math.round(sz/6));
-    const put=(key,tint=0xffffff,rx=rw,ry=rh)=>{mesh.material=texMat('vox-'+key,rx,ry,tint,0xd8d0c0);};
-    if(n.includes('canteen')&&(n.includes('glass')||n.includes('guard'))){mesh.material=glassMat(rw,rh);return;}
-    if(n.includes('glass window')){mesh.material=glassMat(1,1);return;}
-    if(n==='main school building'||n==='school side wing'){put('stonebrick');return;}
-    if(n.startsWith('library ')&&(n.includes('wall')||n.includes('stair cheek'))){put('concrete',0xf1f3f3);return;}
-    if(n.startsWith('dorm')&&n.includes('wall')){put('brick',0xffe4c2);return;}
-    if(n.startsWith('admin ')&&n.includes('wall')){put('plaster',0xffffff);return;}
-    if(n.startsWith('hall ')&&n.includes('wall')){put('brick',0xffd9c3);return;}
-    if(n.startsWith('activity ')&&n.includes('wall')){put('planks',0xffe1b2);return;}
-    if(n.startsWith('gym ')&&n.includes('wall')){put('concrete',0xf1f4f4);return;}
-    if(n.startsWith('lab ')&&n.includes('wall')){put('concrete',0xf1f4f4);return;}
-    if(n==='campus grass floor'){put('grass',0xffffff,fx,fz);return;}
-    if(n.includes('lake water')){put('water',0xffffff,fx,fz);return;}
-    if(n.includes('flower bed')&&n.includes('soil')){put('dirt',0xffffff,fx,fz);return;}
-    if(n.startsWith('market ')&&(n.includes('shelf')||n.includes('checkout'))){put('planks',0xffe4bd,fx,fz);return;}
-    if(n.includes('bookshelf')||n.includes('book spines')||n.includes('shelf')){put('bookshelf',0xffffff,Math.max(1,Math.round(Math.max(sx,sz)/1.2)),Math.max(1,Math.round(sy/1.5)));return;}
-    if(n.includes('blackboard')){put('blackboard');return;}
-    if(n.includes('door')&&n.includes('fake')){put('door',0xffffff,1,2);return;}
-    if(n.includes('path floor')||n==='plaza floor'||n==='plaza axis floor'){put('cobble',0xffffff,fx,fz);return;}
-    if(n.includes('floor')){put('tile',0xffffff,fx,fz);return;}
-    if(n.includes('desk')||n.includes('table')||n.includes('cabinet')||n.includes('柜')){put('planks',0xffe4bd,fx,fz);return;}
-    if(n.includes('bed')){put('planks',0xffe4bd,fx,fz);return;}
-    if(n.includes('rug')){put('tile',0xffffff,fx,fz);return;}
-    if(n.includes('wall')){put('plaster',0xffffff);return;}
+    if (!mesh.isMesh || !mesh.name || mesh.name.startsWith('person') || mesh.name.startsWith('pro ')) return;
+    if (Array.isArray(mesh.material) || (mesh.material && mesh.material.map)) return;
+    const n=mesh.name.toLowerCase();
+    const use=(key,rx,ry,tint)=>{mesh.material=texMat(key,rx,ry,tint);};
+    if(n.includes('bookshelf')) { use('real-books',1,1); return; }
+    if(n.includes('blackboard')) { use('real-blackboard',2.4,1); return; }
+    if(n.includes('bulletin')) { use('real-paper',1,1); return; }
+    if(n.includes('curtain')) { use('real-fabric',1,2); return; }
+    if(n.includes('fountain water')) { use('real-water',3,3); return; }
+    if(n.includes('trunk')||n.includes('log')) { use('real-bark',1,2); return; }
+    if(n.includes('leaves')||n.includes('canopy')||n.includes('crown')) { use('real-leaves',2,2); return; }
+    if(n.includes('exterior')) { use('facade',2,1); return; }
+    if(n.includes('glass')||(n.includes('window')&&!n.includes('sill')&&!n.includes('lintel')&&!n.includes('band'))) { mesh.material=glassMat(2,2); return; }
+    const color=mesh.material&&mesh.material.color?mesh.material.color.getHex():null;
+    const byColor={0x8f9a72:['real-deskwood',1,1],0xd8d2c4:['real-wall',3,1.5],0xe8e2d4:['real-wall',3,1.5],0x9aa0a3:['paving',2,2],0x7fae56:['grass',24,24],0xb9c0c7:['real-floor',6,6],0xcfd6da:['real-floor',4,4],0xf2f2ee:['real-tile',3,3],0xd9e6ee:['real-tile',3,3],0x8a5a33:['real-deskwood',1,1,0xb99771],0x4a4f55:['paving',1,1,0x8a9097],0xf0c987:['real-wall',3,1.5],0xe6dcc2:['real-wall',3,1.5],0xe2dccb:['real-wall',3,1.5],0xd8c6a8:['real-wall',3,1.5],0xb9b3a8:['real-wall',3,1.5],0x6b655c:['real-wall',3,2,0x9c968c],0xc7d3da:['real-wall',3,1.5,0xcfd8dc],0xd59a55:['real-deskwood',1,1],0xd9b380:['real-deskwood',1,1,0xd8bd8f],0x8f603a:['real-deskwood',1,1,0xb99771],0x8a6a48:['real-deskwood',1,1,0xb99771],0x9a6a42:['real-deskwood',1,1,0xb99771],0x8e5638:['real-deskwood',1,1,0xa87948],0x77b25a:['grass',24,24],0xe8d8ad:['real-floor',6,6],0xc5dce0:['real-marble',4,4],0xaaa397:['paving',2,2],0xb7aea0:['paving',2,2]};
+    if(byColor[color]) { const [key,rx,ry,tint]=byColor[color]; use(key,rx,ry,tint); }
   });
   // 第十步第二轮：建筑屋顶细节、绿化、入口扶手与斑马线（纯视觉，无碰撞）。
   const roofStone = 0xbdb5a4, acColor = 0xb9c0c4, acGrille = 0x59636b;
@@ -1256,12 +1283,14 @@
   // 教学楼雨棚前缘收边。
   box('entrance canopy fascia',0,3.5,27.42,7.7,.34,.12,0x74452e);
   // 湖岸柳树，独立网格，不调用会登记碰撞的 tree()。
-  function willow(x,z) { const trunk=new THREE.Mesh(new THREE.BoxGeometry(.36,1.9,.36),texMat('vox-log',1,2,0xffffff,0x7a5230));trunk.name='willow trunk';trunk.position.set(x,.95,z);scene.add(trunk);for(const [w,h,d,ox,oy,oz] of [[1.5,1.2,1.5,0,2.55,0],[1.2,1.1,1.2,-.45,1.85,0],[1.2,1.1,1.2,.45,1.85,.1]]){const leaf=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),texMat('vox-leaves',1,1,0xffffff,0x5da34c));leaf.name='willow crown';leaf.position.set(x+ox,oy,z+oz);scene.add(leaf);} }
+  function willow(x,z) { const trunk=new THREE.Mesh(new THREE.BoxGeometry(.36,1.9,.36),texMat('real-bark',1,2,0xffffff,0x7a5230));trunk.name='willow trunk';trunk.position.set(x,.95,z);scene.add(trunk);for(const [w,h,d,ox,oy,oz] of [[1.5,1.2,1.5,0,2.55,0],[1.2,1.1,1.2,-.45,1.85,0],[1.2,1.1,1.2,.45,1.85,.1]]){const leaf=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),texMat('real-leaves',1,1,0xffffff,0x5da34c));leaf.name='willow crown';leaf.position.set(x+ox,oy,z+oz);scene.add(leaf);} }
   for (const [x,z] of [[-35.5,105],[-35.5,119],[-50,122.8]]) willow(x,z);
   // 校门与广场南口斑马线。
   for (const z of [121.6,122.4,123.2,124]) box('zebra stripe',0,-.165,z,6.4,.015,.55,0xf5f2ea);
   for (const z of [54.6,55.4,56.2,57]) box('zebra stripe',0,-.105,z,5.6,.015,.55,0xf5f2ea);
-  scene.traverse(o => { if (!o.isMesh) return; o.receiveShadow = true; const n = o.name || ''; o.castShadow =!(n.includes('ceiling') || n.includes('wall') || n.includes('floor') || n.includes('glass') || n.includes('sign') || n.includes('skyline') || n.includes('cloud')) &&!(o.material && o.material.isMeshBasicMaterial);});
+  for (const [x,y,z] of [[0,3.05,-2],[-.7,3.05,-18.8],[0,3.05,15],[0,3.05,-12.9],[0,6.65,-12.9],[3.4,6.65,-4]]) { const light=new THREE.PointLight(0xffe6bb,26,12,2); light.castShadow=false; light.position.set(x,y,z); scene.add(light); }
+  for (const [x,y,z,length,width] of [[0,3.56,-5,2.4,.5],[0,3.56,1,2.4,.5],[-.7,3.56,-18.8,2.4,.5],[0,3.56,11,2.4,.5],[0,3.56,19,2.4,.5],[-6,3.56,-12.9,1.8,.4],[0,3.56,-12.9,1.8,.4],[6,3.56,-12.9,1.8,.4],[-6,7.16,-12.9,1.8,.4],[0,7.16,-12.9,1.8,.4],[6,7.16,-12.9,1.8,.4],[.4,7.16,-4,2.4,.5],[6.4,7.16,-4,2.4,.5],[77,3.56,39,2.4,.5],[85,3.56,39,2.4,.5],[76,3.56,73,2.4,.5],[81,3.56,73,2.4,.5],[86,3.56,73,2.4,.5]]) { const panel=new THREE.Mesh(new THREE.BoxGeometry(length,.035,width),new THREE.MeshBasicMaterial({color:0xfff3d6})); panel.name='lamp panel'; panel.position.set(x,y,z); scene.add(panel); }
+  scene.traverse(o => { if (!o.isMesh) return; o.receiveShadow = true; const n = o.name || ''; o.castShadow =!(n.includes('ceiling') || n.includes('wall') || n.includes('floor') || n.includes('glass') || n.includes('sign') || n.includes('skyline') || n.includes('cloud') || n.includes('lamp')) &&!(o.material && o.material.isMeshBasicMaterial);});
   let camDist=4.5;
   renderer.domElement.addEventListener('wheel',e=>{if(document.pointerLockElement===renderer.domElement)camDist=Math.max(2.5,Math.min(7,camDist+Math.sign(e.deltaY)*.5));},{passive:true});
   function placeCamera(){
