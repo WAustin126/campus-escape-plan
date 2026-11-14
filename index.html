@@ -143,6 +143,7 @@
     try {
       entry.tex = new THREE.TextureLoader().load(url, tex => {
         tex.colorSpace = THREE.SRGBColorSpace; tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestMipmapLinearFilter || THREE.NearestFilter;
         try { tex.anisotropy = renderer.capabilities.getMaxAnisotropy(); } catch (_) { tex.anisotropy = 4; }
         entry.loaded = true;
         entry.waiters.forEach(fn => fn(tex));
@@ -160,12 +161,11 @@
   function glassMat(rx, ry) {
     const material = new THREE.MeshLambertMaterial({ color: 0x8fb2c9, emissive: 0xcc8433, emissiveIntensity: .38, transparent: true, opacity: .82 });
     const apply = tex => { const clone = tex.clone(); clone.repeat.set(rx, ry); clone.needsUpdate = true; material.map = clone; material.needsUpdate = true; };
-    const entry = texLib.glass;
+    const entry = texLib['vox-glass'];
     if (entry) { if (entry.loaded) apply(entry.tex); else entry.waiters.push(apply); }
     return material;
   }
-  loadTex('facade', 'assets/tex/facade-teaching.webp'); loadTex('glass', 'assets/tex/glass-canteen.webp');
-  loadTex('grass', 'assets/tex/grass.webp'); loadTex('paving', 'assets/tex/paving.webp');
+  for (const key of ['grass','stonebrick','planks','bookshelf','cobble','glass','brick','plaster','concrete','tile','log','leaves','dirt','water','blackboard','door']) loadTex('vox-'+key, 'assets/tex/vox-'+key+'.png');
   const colliders = [];
   function addColliderBounds(minX, maxX, minZ, maxZ, y0, y1) { colliders.push({ bounds:{minX,maxX,minZ,maxZ}, y0, y1 }); }
   function box(name, x, y, z, sx, sy, sz, color, solid = false, y0, y1) {
@@ -178,7 +178,7 @@
   const B1={y0:-.6,y1:1.9}, B2={y0:1.7,y1:5.6};
   const HOOP_POS = { x:-48.6, z:79 }, HOOP_TRIGGER_RADIUS = 2.6;
   function wall(name,x,y,z,sx,sy,sz,floor=0,color=0xf0c987){box(name,x,y,z,sx,sy,sz,color);addColliderBounds(x-sx/2,x+sx/2,z-sz/2,z+sz/2,...(floor? [B2.y0,B2.y1]:[B1.y0,B1.y1]));}
-  function makeDoor(label,z,hingeX,direction,axis='z',y=0){const pivot=new THREE.Group();const plane=z,hinge=hingeX;if(axis==='x')pivot.position.set(plane,y,hinge);else pivot.position.set(hingeX,y,z);scene.add(pivot);const width=DOOR_WIDTH;const leaf=new THREE.Mesh(axis==='x'?new THREE.BoxGeometry(.18,2.95,width):new THREE.BoxGeometry(width,2.95,.18),mat(0x8e5638));if(axis==='x')leaf.position.set(0,1.475,direction*width/2);else leaf.position.set(direction*width/2,1.475,0);pivot.add(leaf);const handle=new THREE.Mesh(new THREE.SphereGeometry(.075,12,8),mat(0xf5d66f));if(axis==='x')handle.position.set(direction*.12,1.45,direction*(width-.22));else handle.position.set(direction*(width-.22),1.45,direction>0?.12:-.12);pivot.add(handle);const door={label,pivot,floorY:y,z:axis==='x'?hinge: z,hingeX:axis==='x'?plane:hingeX,direction,open:false,passable:false,width,cachedBounds:null,axis,plane,hinge};door.cx=axis==='x'?plane:hinge+direction*width/2;door.cz=axis==='x'?hinge+direction*width/2:plane;door.collider={door};colliders.push(door.collider);return door;}
+  function makeDoor(label,z,hingeX,direction,axis='z',y=0){const pivot=new THREE.Group();const plane=z,hinge=hingeX;if(axis==='x')pivot.position.set(plane,y,hinge);else pivot.position.set(hingeX,y,z);scene.add(pivot);const width=DOOR_WIDTH;const leaf=new THREE.Mesh(axis==='x'?new THREE.BoxGeometry(.18,2.95,width):new THREE.BoxGeometry(width,2.95,.18),texMat('vox-door',1,2,0xffffff,0x8e5638)); leaf.name='person door leaf';if(axis==='x')leaf.position.set(0,1.475,direction*width/2);else leaf.position.set(direction*width/2,1.475,0);pivot.add(leaf);const handle=new THREE.Mesh(new THREE.SphereGeometry(.075,12,8),mat(0xf5d66f));if(axis==='x')handle.position.set(direction*.12,1.45,direction*(width-.22));else handle.position.set(direction*(width-.22),1.45,direction>0?.12:-.12);pivot.add(handle);const door={label,pivot,floorY:y,z:axis==='x'?hinge: z,hingeX:axis==='x'?plane:hingeX,direction,open:false,passable:false,width,cachedBounds:null,axis,plane,hinge};door.cx=axis==='x'?plane:hinge+direction*width/2;door.cz=axis==='x'?hinge+direction*width/2:plane;door.collider={door};colliders.push(door.collider);return door;}
   function makeSign(text,w,h,bg,fg){const canvas=document.createElement('canvas');canvas.width=512;canvas.height=Math.round(512*h/w);const ctx=canvas.getContext('2d');ctx.fillStyle=bg;ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle=fg;ctx.font=`bold ${Math.round(canvas.height*.58)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,canvas.width/2,canvas.height/2);const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;const mesh=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:texture,side:THREE.DoubleSide}));mesh.name=`sign ${text}`;return mesh;}
   function addSign(text,w,h,bg,fg,x,y,z,rotationY=0){const sign=makeSign(text,w,h,bg,fg);sign.position.set(x,y,z);sign.rotation.y=rotationY;scene.add(sign);return sign;}
   function floorTile(name,x,z,sx,sz,y=0,color=0xe8d8ad){box(name,x,y-.12,z,sx,.24,sz,color);}
@@ -304,7 +304,7 @@
   const lampMat = new THREE.MeshLambertMaterial({color:0xffe9a8,emissive:0xffca55,emissiveIntensity:.9});
   for (const [x,z] of [[-16.5,28],[16.5,28],[-16.5,44],[16.5,44],[-16.5,56],[16.5,56]]) { const pole=new THREE.Mesh(new THREE.CylinderGeometry(.06,.08,3.6,10),mat(0x3f4a52));pole.name='plaza lamp post';pole.position.set(x,1.8,z);scene.add(pole);const head=new THREE.Mesh(new THREE.SphereGeometry(.22,12,8),lampMat);head.name='plaza lamp head';head.position.set(x,3.7,z);scene.add(head);colliders.push({bounds:{minX:x-.3,maxX:x+.3,minZ:z-.3,maxZ:z+.3}}); }
   for (const x of [-4.6,4.6]) { const bin=new THREE.Mesh(new THREE.CylinderGeometry(.26,.24,.68,12),mat(0x3e7d4e));bin.name='campus trash bin';bin.position.set(x,.34,30);scene.add(bin);colliders.push({bounds:{minX:x-.3,maxX:x+.3,minZ:29.7,maxZ:30.3}}); }
-  function tree(x,z) { const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.13,.17,1.7,10),mat(0x7a5230));trunk.name='campus tree trunk';trunk.position.set(x,.85,z);scene.add(trunk);const crown=new THREE.Mesh(new THREE.SphereGeometry(1.25,12,10),mat(0x4e8f3f));crown.name='campus tree crown';crown.position.set(x,2.6,z);scene.add(crown);const crown2=new THREE.Mesh(new THREE.SphereGeometry(.85,12,10),mat(0x5da34c));crown2.name='campus tree crown';crown2.position.set(x+.55,3.3,z+.2);scene.add(crown2);colliders.push({bounds:{minX:x-.32,maxX:x+.32,minZ:z-.32,maxZ:z+.32}}); }
+  function tree(x,z) { const trunk=new THREE.Mesh(new THREE.BoxGeometry(.34,1.7,.34),texMat('vox-log',1,2,0xffffff,0x7a5230));trunk.name='campus tree trunk';trunk.position.set(x,.85,z);scene.add(trunk);for(const [w,h,d,ox,oy,oz] of [[2.2,1.8,2.2,0,2.6,0],[1.5,.9,1.5,0,3.75,0],[1.2,1.2,1.2,.75,3.15,.15]]){const leaf=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),texMat('vox-leaves',1,1,0xffffff,0x4e8f3f));leaf.name='campus tree crown';leaf.position.set(x+ox,oy,z+oz);scene.add(leaf);}colliders.push({bounds:{minX:x-.32,maxX:x+.32,minZ:z-.32,maxZ:z+.32}}); }
   for (const [x,z] of [[-15,31],[15,31],[-15,41],[15,41],[-15,51],[15,51],[-8,60],[8,60],[-20,60],[20,60]]) tree(x,z);
 
   // 食堂与图书馆：东侧新址。
@@ -448,29 +448,43 @@
   for(const [z,label] of [[37.5,'食堂 · 图书馆 →'],[55,'宿舍 · 校医院 →']]) { fieldBox('plaza west sign post',-17.2,1.1,z,.12,2.2,.12,0x6e6a61,true); fieldSign(label,2,.7,'#2e5e4e','#ffffff',-17.2,2,z+.1); fieldSign(label,2,.7,'#2e5e4e','#ffffff',-17.2,2,z-.1,Math.PI); }
   // 天空中的几何云朵。
   for (const [cx,cy,cz] of [[-50,31,24],[-25,36,48],[0,29,76],[25,38,32],[48,33,92],[70,30,59],[5,39,106]]) for(let i=0;i<3;i++){const cloud=new THREE.Mesh(new THREE.SphereGeometry(1,12,8),new THREE.MeshBasicMaterial({color:0xffffff,fog:false}));cloud.name='cloud';cloud.scale.set(3.2+(i%2)*.7,.55+(i%2)*.12,1.45);cloud.position.set(cx+(i-1)*2.1,cy+(i===1?.4:0),cz+(i%2)*.5);scene.add(cloud);}
+  function blockPerson(opts) {
+    const g=new THREE.Group(); g.name='person group';
+    const limb=(x,y,z,w,h,d,color,name)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(color));m.name='person '+name; m.position.set(x,y,z);g.add(m);return m;};
+    const pivot=(x,y,name)=>{const q=new THREE.Group();q.name='person '+name;q.position.set(x,y,0);g.add(q);return q;};
+    const legL=pivot(-.14,.70,'leg left'),legR=pivot(.14,.70,'leg right');
+    for(const [q,n] of [[legL,'left'],[legR,'right']]){const m=new THREE.Mesh(new THREE.BoxGeometry(.24,.70,.26),mat(opts.pants));m.name='person leg '+n;m.position.y=-.35;q.add(m);}
+    limb(0,1.01,0,.58,.62,.30,opts.torso,'torso');
+    if(opts.accent)limb(0,1.22,0,.59,.10,.31,opts.accent,'accent');
+    const armL=pivot(-.40,1.28,'arm left'),armR=pivot(.40,1.28,'arm right');
+    for(const [q,n] of [[armL,'left'],[armR,'right']]){let m=new THREE.Mesh(new THREE.BoxGeometry(.20,.62,.24),mat(opts.torso));m.name='person sleeve '+n;m.position.y=-.27;q.add(m);m=new THREE.Mesh(new THREE.BoxGeometry(.20,.12,.24),mat(opts.skin));m.name='person hand '+n;m.position.y=-.56;q.add(m);}
+    const head=new THREE.Group();head.name='person head';head.position.y=1.32;g.add(head);
+    const canvas=document.createElement('canvas');canvas.width=canvas.height=64;const c=canvas.getContext('2d');c.fillStyle=opts.face==='dark'?'#171522':'#'+opts.skin.toString(16).padStart(6,'0');c.fillRect(0,0,64,64);c.fillStyle=opts.face==='dark'?'#c8c8dc':'#30251f';c.fillRect(14,28,9,11);c.fillRect(41,28,9,11);c.fillRect(27,47,10,3);
+    const face=new THREE.CanvasTexture(canvas);face.colorSpace=THREE.SRGBColorSpace;face.magFilter=THREE.NearestFilter;
+    const hmat=mat(opts.hair),skinmat=mat(opts.skin),fm=new THREE.MeshLambertMaterial({map:face});
+    const hm=new THREE.Mesh(new THREE.BoxGeometry(.46,.44,.44),[skinmat,skinmat,hmat,skinmat,fm,hmat]);hm.name='person head mesh';hm.position.y=.22;head.add(hm);
+    if(opts.longHair)limb(0,1.48,-.20,.48,.52,.10,opts.hair,'long hair');
+    if(opts.hood)limb(0,1.70,0,.58,.30,.56,opts.hood,'hood');
+    return {group:g,armL,armR,legL,legR};
+  }
+  const playerAvatar=blockPerson({skin:0xe8b98d,hair:0x2b2320,torso:0x2f6fd0,pants:0x2b3a55,accent:0xffffff});scene.add(playerAvatar.group);
+  let avatarX=0,avatarZ=5,walkPhase=0,avatarAmp=0;
+  function updatePlayerAvatar(dt){const x=camera.position.x,z=camera.position.z,mx=x-avatarX,mz=z-avatarZ,moved=Math.hypot(mx,mz);avatarX=x;avatarZ=z;playerAvatar.group.position.set(x,playerGroundY,z);walkPhase+=moved*2.4;avatarAmp+=( (moved>.01?.6:0)-avatarAmp)*(1-Math.exp(-12*dt));playerAvatar.armL.rotation.x=Math.sin(walkPhase)*avatarAmp;playerAvatar.armR.rotation.x=-playerAvatar.armL.rotation.x;playerAvatar.legL.rotation.x=-playerAvatar.armL.rotation.x;playerAvatar.legR.rotation.x=playerAvatar.armL.rotation.x;let target=moved>.01?Math.atan2(mx,mz):yaw+Math.PI,delta=Math.atan2(Math.sin(target-playerAvatar.group.rotation.y),Math.cos(target-playerAvatar.group.rotation.y));playerAvatar.group.rotation.y+=delta*(1-Math.exp(-12*dt));}
   // 严老师只沿教室中央过道与走廊中线巡逻，不参与玩家碰撞。
-  const teacher = { id:'yan_teacher', group:new THREE.Group(), facing:0, waypoint:0, returnStep:0, lastLines:{} };
-  const teacherBody = new THREE.Mesh(new THREE.BoxGeometry(.62, 1.05, .34), mat(0x263747)); teacherBody.position.y = 1.28; teacher.group.add(teacherBody);
-  const teacherHead = new THREE.Mesh(new THREE.SphereGeometry(.24, 16, 12), mat(0xd6a982)); teacherHead.position.set(0, 2.02, 0); teacher.group.add(teacherHead);
-  const teacherHair = new THREE.Mesh(new THREE.SphereGeometry(.245, 16, 8, 0, Math.PI * 2, 0, Math.PI * .48), mat(0x9b9da0)); teacherHair.position.set(0, 2.09, 0); teacher.group.add(teacherHair);
-  for (const x of [-.18, .18]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(.2, .7, .24), mat(0x202b35)); leg.position.set(x, .48, 0); teacher.group.add(leg); }
-  teacher.group.position.set(0, 0, -9.4); scene.add(teacher.group);
+  const teacherLimbs=blockPerson({skin:0xd6a982,hair:0x9b9da0,torso:0x33383e,pants:0x23272c});
+  const teacher = { id:'yan_teacher', group:teacherLimbs.group, limbs:teacherLimbs, facing:0, waypoint:0, returnStep:0, lastLines:{} };
+  teacher.group.position.set(0,0,-9.4); scene.add(teacher.group);
   const teacherWaypoints = [[0,-9.4],[0,5.2],[0,8.0],[4,11.5],[-4,11.5],[0,8.0],[0,5.2],[0,-10.0],[0,-12.9],[0,-10.0],[0,-9.4]];
-  const counselor = { id:'zhou_counselor', group:new THREE.Group(), facing:0, waypoint:0, lastLines:{}, area:'front', periodKey:'' };
-  const cBody = new THREE.Mesh(new THREE.BoxGeometry(.62,1.05,.34),mat(0xdfe8ee)); cBody.position.y=1.28; counselor.group.add(cBody);
-  const cHead = new THREE.Mesh(new THREE.SphereGeometry(.24,16,12),mat(0xd6a982)); cHead.position.y=2.02; counselor.group.add(cHead);
-  const cHair = new THREE.Mesh(new THREE.BoxGeometry(.18,.42,.2),mat(0x382c2b)); cHair.position.set(0,1.95,-.24); counselor.group.add(cHair);
-  for(const x of [-.18,.18]) { const leg=new THREE.Mesh(new THREE.BoxGeometry(.2,.7,.24),mat(0x2e3440)); leg.position.set(x,.48,0); counselor.group.add(leg); }
-  counselor.group.position.set(0,0,-12.3); scene.add(counselor.group);
+  const counselorLimbs=blockPerson({skin:0xd6a982,hair:0x382c2b,torso:0x27354f,pants:0x2e3440,longHair:true});
+  const counselor = { id:'zhou_counselor', group:counselorLimbs.group, limbs:counselorLimbs, facing:0, waypoint:0, lastLines:{}, area:'front', periodKey:'' };
+  counselor.group.position.set(0,0,-12.3);scene.add(counselor.group);
   // 周老师分别巡逻两段走廊；拐点仍在前/后走廊内，不穿越教室。
   const counselorWaypoints=[[0,-12.3],[-8.6,-12.3],[-8.6,-13.5],[8.6,-13.5],[8.6,-12.3],[0,-12.3]];
   const counselorBackWaypoints=[[0,-13.5],[8.6,-13.5],[8.6,-12.3],[-8.6,-12.3],[-8.6,-13.5],[0,-13.5]];
-  const admin = { id:'admin',group:new THREE.Group(),lastLines:{} };
-  const aBody=new THREE.Mesh(new THREE.BoxGeometry(.72,1.3,.42),mat(0x1d1a2e)); aBody.position.y=1.15; admin.group.add(aBody);
-  const aHead=new THREE.Mesh(new THREE.SphereGeometry(.24,16,12),mat(0x171522)); aHead.position.y=2.03; admin.group.add(aHead);
-  const hood=new THREE.Mesh(new THREE.BoxGeometry(.62,.38,.58),mat(0x29243b)); hood.position.set(0,2.2,0); admin.group.add(hood);
+  const adminParts=blockPerson({skin:0x171522,hair:0x29243b,torso:0x1d1a2e,pants:0x1d1a2e,face:'dark',hood:0x29243b});
+  const admin = { id:'admin',group:adminParts.group,lastLines:{} };
   admin.group.position.set(8.9,0,-12.9); admin.group.rotation.y=-Math.PI/2; scene.add(admin.group);
-  for (const group of [teacher.group, counselor.group, admin.group]) group.traverse(o => { if (o.isMesh && o.material && o.material.isMeshLambertMaterial) { o.material = o.material.clone(); o.material.emissive = o.material.color.clone().multiplyScalar(0.22); } });
+  for (const group of [teacher.group,counselor.group,admin.group]) group.traverse(o => { if(!o.isMesh||!o.material)return; const apply=m=>{if(m&&m.isMeshLambertMaterial){const clone=m.clone();clone.emissive=clone.color.clone().multiplyScalar(.22);return clone;}return m;};o.material=Array.isArray(o.material)?o.material.map(apply):apply(o.material); });
   // 门未解锁时以暗色裂缝占位，触发靠近提示。
   const portal = new THREE.Group(); portal.position.set(-8.3,1.7,-11.02); portal.rotation.y=Math.PI; scene.add(portal);
   const portalFrame=new THREE.Mesh(new THREE.BoxGeometry(1.7,3.3,.2),new THREE.MeshBasicMaterial({color:0x8a6cff})); portal.add(portalFrame);
@@ -938,12 +952,14 @@
       else if(distance<.15&&teacher.returnStep===0){teacher.returnStep=1;target=[0,-9.4];dx=target[0]-teacher.group.position.x;dz=target[1]-teacher.group.position.z;distance=Math.hypot(dx,dz);}
       if (distance > .001) {
         const step = Math.min(distance, CONFIG.teacherSpeed * dt), dirX = dx / distance, dirZ = dz / distance;
+        const limbSwing=Math.sin(performance.now()*.012)*Math.min(.6,step*8);
+        teacher.limbs.armL.rotation.x=limbSwing;teacher.limbs.armR.rotation.x=-limbSwing;teacher.limbs.legL.rotation.x=-limbSwing;teacher.limbs.legR.rotation.x=limbSwing;
         teacher.group.position.x += dirX * step; teacher.group.position.z += dirZ * step;
         const desired = Math.atan2(dirX, dirZ), turn = Math.atan2(Math.sin(desired - teacher.facing), Math.cos(desired - teacher.facing));
         teacher.facing += Math.max(-5 * dt, Math.min(5 * dt, turn)); teacher.group.rotation.y = teacher.facing;
         for (const door of doors) if (!door.open && Math.abs(teacher.group.position.z - door.z) < .35 && Math.abs(teacher.group.position.x) < DOOR_WIDTH / 2 + .5) { door.open = true; door.passable=false; }
-      }
-    }
+      } else { teacher.limbs.armL.rotation.x=teacher.limbs.armR.rotation.x=teacher.limbs.legL.rotation.x=teacher.limbs.legR.rotation.x=0; }
+    } else { teacher.limbs.armL.rotation.x=teacher.limbs.armR.rotation.x=teacher.limbs.legL.rotation.x=teacher.limbs.legR.rotation.x=0; }
     if (active) {
       if (gameState.skipping && playerVisibleToTeacher()) gameState.alert += 100 / CONFIG.alertRiseSeconds * dt;
       else gameState.alert -= CONFIG.alertDecayPerSec * dt;
@@ -1026,7 +1042,6 @@
     yaw -= e.movementX * .0022;
     pitch -= e.movementY * .0022;
     pitch = Math.max(-1.45, Math.min(1.45, pitch));
-    camera.rotation.set(pitch, yaw, 0, 'YXZ');
   });
   const keys = new Set();
   document.addEventListener('keydown', e => {
@@ -1149,7 +1164,7 @@
     const classKey=period&&period.type==='class'?gameState.day+'-'+gameState.periodIndex:'';
     if(classKey&&classKey!==counselor.periodKey){if(counselor.periodKey!=='')counselor.area=counselor.area==='front'?'back':'front';counselor.periodKey=classKey;counselor.waypoint=0;const startWp=(counselor.area==='front'?counselorWaypoints:counselorBackWaypoints)[0];counselor.group.position.set(startWp[0],0,startWp[1]);}
     counselor.group.visible=!!(period&&period.type==='class');
-    if(counselor.group.visible){const wps=counselor.area==='front'?counselorWaypoints:counselorBackWaypoints;let target=wps[counselor.waypoint];let dx=target[0]-counselor.group.position.x,dz=target[1]-counselor.group.position.z,dist=Math.hypot(dx,dz);if(dist<.15){counselor.waypoint=(counselor.waypoint+1)%wps.length;target=wps[counselor.waypoint];dx=target[0]-counselor.group.position.x;dz=target[1]-counselor.group.position.z;dist=Math.hypot(dx,dz);}if(dist>.001){const st=Math.min(dist,CONFIG.counselorSpeed*dt),vx=dx/dist,vz=dz/dist;counselor.group.position.x+=vx*st;counselor.group.position.z+=vz*st;counselor.facing=Math.atan2(vx,vz);counselor.group.rotation.y=counselor.facing;}}
+    if(counselor.group.visible){const wps=counselor.area==='front'?counselorWaypoints:counselorBackWaypoints;let target=wps[counselor.waypoint];let dx=target[0]-counselor.group.position.x,dz=target[1]-counselor.group.position.z,dist=Math.hypot(dx,dz);if(dist<.15){counselor.waypoint=(counselor.waypoint+1)%wps.length;target=wps[counselor.waypoint];dx=target[0]-counselor.group.position.x;dz=target[1]-counselor.group.position.z;dist=Math.hypot(dx,dz);}if(dist>.001){const st=Math.min(dist,CONFIG.counselorSpeed*dt),vx=dx/dist,vz=dz/dist;counselor.group.position.x+=vx*st;counselor.group.position.z+=vz*st;counselor.facing=Math.atan2(vx,vz);counselor.group.rotation.y=counselor.facing;const phase=performance.now()*.012,amp=.6;counselor.limbs.armL.rotation.x=Math.sin(phase)*amp;counselor.limbs.armR.rotation.x=-Math.sin(phase)*amp;counselor.limbs.legL.rotation.x=-Math.sin(phase)*amp;counselor.limbs.legR.rotation.x=Math.sin(phase)*amp;}}
     updateTeacher(dt);
     updateStrangeSpace(dt);
     updateGate();
@@ -1159,27 +1174,35 @@
   box('canteen south glass', 76.5, 3.6, 86.3, 11, 3.4, .12, 0x8fb2c9).material = glassMat(Math.max(1, Math.round(11 / 6)), Math.max(1, Math.round(3.4 / 3)));
   box('canteen south glass', 92.5, 3.6, 86.3, 9.5, 3.4, .12, 0x8fb2c9).material = glassMat(Math.max(1, Math.round(9.5 / 6)), Math.max(1, Math.round(3.4 / 3)));
   scene.traverse(mesh => {
-    if (!mesh.isMesh) return;
-    const n = mesh.name || '';
-    const p = mesh.geometry && mesh.geometry.parameters;
-    const sx = p ? p.width : 20, sy = p ? p.height : 6, sz = p ? p.depth : 20;
-    const faceW = Math.max(sx, sz), faceH = sy;
-    const rx = Math.max(1, Math.round(faceW / 12)), ry = Math.max(1, Math.round(faceH / 13));
-    const floorRx = Math.max(1, Math.round(sx / 4.5)), floorRy = Math.max(1, Math.round(sz / 4.5));
-    if (n === 'main facade glass window' || n === 'main window sill' || n === 'wing glass window') { mesh.visible = false; return; }
-    if (n === 'canteen facade glass') { mesh.material = glassMat(Math.max(1, Math.round(faceW / 6)), Math.max(1, Math.round(sy / 3))); return; }
-    if (n === 'main school building' || n === 'school side wing') { mesh.material = texMat('facade', rx, ry, 0xffffff, 0xe9e2d4); return; }
-    if (n.startsWith('library ') && (n.includes('wall') || n.includes('stair cheek'))) { mesh.material = texMat('facade', rx, ry, 0xb9c4c9, 0xb9b3a8); return; }
-    if (n.startsWith('dorm') && n.includes('wall')) { mesh.material = texMat('facade', Math.max(1, Math.round(rx * 2)), Math.max(1, Math.round(ry * 2)), 0xffdfae, 0xd8c6a8); return; }
-    if (n.startsWith('admin ') && n.includes('wall')) { mesh.material = texMat('facade', rx, ry, 0xd9d2c2, 0xcfc8ba); return; }
-    if (n.startsWith('hall ') && n.includes('wall')) { mesh.material = texMat('facade', rx, ry, 0xe2bda6, 0xa85f4a); return; }
-    if (n.startsWith('activity ') && n.includes('wall')) { mesh.material = texMat('facade', rx, ry, 0xeadfc6, 0xd9a45e); return; }
-    if (n.startsWith('gym ') && n.includes('wall')) { mesh.material = texMat('facade', rx, ry, 0xc3d2da, 0xc7d3da); return; }
-    if (n.startsWith('lab ') && n.includes('wall')) { mesh.material = texMat('facade', rx, ry, 0xbcc9d1, 0x9fb2bd); return; }
-    if (n === 'campus grass floor') { mesh.material = texMat('grass', Math.max(1, Math.round(sx / 7)), Math.max(1, Math.round(sz / 7)), 0xffffff, 0x77b25a); return; }
-    if (n === 'corridor floor') { mesh.material = texMat('paving', 4, 3, 0xffffff, 0xc5dce0); return; }
-    if (n === 'plaza floor') { mesh.material = texMat('paving', floorRx, floorRy, 0xffffff, 0xd9c9a8); return; }
-    if (n.endsWith('path floor') || n === 'plaza axis floor') { mesh.material = texMat('paving', floorRx, floorRy, 0xffffff, 0xe6dcc2); }
+    if (!mesh.isMesh || !mesh.name || mesh.name.startsWith('person')) return;
+    const n=mesh.name.toLowerCase(), p=mesh.geometry&&mesh.geometry.parameters;
+    const sx=p?p.width:4, sy=p?p.height:3, sz=p?p.depth:4;
+    const rw=Math.max(1,Math.round(Math.max(sx,sz)/4)), rh=Math.max(1,Math.round(sy/4));
+    const fx=Math.max(1,Math.round(sx/6)), fz=Math.max(1,Math.round(sz/6));
+    const put=(key,tint=0xffffff,rx=rw,ry=rh)=>{mesh.material=texMat('vox-'+key,rx,ry,tint,0xd8d0c0);};
+    if(n.includes('canteen')&&(n.includes('glass')||n.includes('guard'))){mesh.material=glassMat(rw,rh);return;}
+    if(n.includes('glass window')){mesh.material=glassMat(1,1);return;}
+    if(n==='main school building'||n==='school side wing'){put('stonebrick');return;}
+    if(n.startsWith('library ')&&(n.includes('wall')||n.includes('stair cheek'))){put('concrete',0xf1f3f3);return;}
+    if(n.startsWith('dorm')&&n.includes('wall')){put('brick',0xffe4c2);return;}
+    if(n.startsWith('admin ')&&n.includes('wall')){put('plaster',0xffffff);return;}
+    if(n.startsWith('hall ')&&n.includes('wall')){put('brick',0xffd9c3);return;}
+    if(n.startsWith('activity ')&&n.includes('wall')){put('planks',0xffe1b2);return;}
+    if(n.startsWith('gym ')&&n.includes('wall')){put('concrete',0xf1f4f4);return;}
+    if(n.startsWith('lab ')&&n.includes('wall')){put('concrete',0xf1f4f4);return;}
+    if(n==='campus grass floor'){put('grass',0xffffff,fx,fz);return;}
+    if(n.includes('lake water')){put('water',0xffffff,fx,fz);return;}
+    if(n.includes('flower bed')&&n.includes('soil')){put('dirt',0xffffff,fx,fz);return;}
+    if(n.startsWith('market ')&&(n.includes('shelf')||n.includes('checkout'))){put('planks',0xffe4bd,fx,fz);return;}
+    if(n.includes('bookshelf')||n.includes('book spines')||n.includes('shelf')){put('bookshelf',0xffffff,Math.max(1,Math.round(Math.max(sx,sz)/1.2)),Math.max(1,Math.round(sy/1.5)));return;}
+    if(n.includes('blackboard')){put('blackboard');return;}
+    if(n.includes('door')&&n.includes('fake')){put('door',0xffffff,1,2);return;}
+    if(n.includes('path floor')||n==='plaza floor'||n==='plaza axis floor'){put('cobble',0xffffff,fx,fz);return;}
+    if(n.includes('floor')){put('tile',0xffffff,fx,fz);return;}
+    if(n.includes('desk')||n.includes('table')||n.includes('cabinet')||n.includes('柜')){put('planks',0xffe4bd,fx,fz);return;}
+    if(n.includes('bed')){put('planks',0xffe4bd,fx,fz);return;}
+    if(n.includes('rug')){put('tile',0xffffff,fx,fz);return;}
+    if(n.includes('wall')){put('plaster',0xffffff);return;}
   });
   // 第十步第二轮：建筑屋顶细节、绿化、入口扶手与斑马线（纯视觉，无碰撞）。
   const roofStone = 0xbdb5a4, acColor = 0xb9c0c4, acGrille = 0x59636b;
@@ -1233,22 +1256,36 @@
   // 教学楼雨棚前缘收边。
   box('entrance canopy fascia',0,3.5,27.42,7.7,.34,.12,0x74452e);
   // 湖岸柳树，独立网格，不调用会登记碰撞的 tree()。
-  function willow(x,z) {
-    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.13,.18,1.9,8),mat(0x7a5230)); trunk.name='willow trunk'; trunk.position.set(x,.95,z); scene.add(trunk);
-    const crown=new THREE.Mesh(new THREE.SphereGeometry(1.15,10,8),mat(0x5da34c)); crown.name='willow crown'; crown.scale.set(1.05,1.5,1.05); crown.position.set(x,3.2,z); scene.add(crown);
-    const crown2=new THREE.Mesh(new THREE.SphereGeometry(.8,10,8),mat(0x5da34c)); crown2.name='willow crown'; crown2.scale.set(1,1.4,1); crown2.position.set(x+.55,2.7,z+.2); scene.add(crown2);
-  }
+  function willow(x,z) { const trunk=new THREE.Mesh(new THREE.BoxGeometry(.36,1.9,.36),texMat('vox-log',1,2,0xffffff,0x7a5230));trunk.name='willow trunk';trunk.position.set(x,.95,z);scene.add(trunk);for(const [w,h,d,ox,oy,oz] of [[1.5,1.2,1.5,0,2.55,0],[1.2,1.1,1.2,-.45,1.85,0],[1.2,1.1,1.2,.45,1.85,.1]]){const leaf=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),texMat('vox-leaves',1,1,0xffffff,0x5da34c));leaf.name='willow crown';leaf.position.set(x+ox,oy,z+oz);scene.add(leaf);} }
   for (const [x,z] of [[-35.5,105],[-35.5,119],[-50,122.8]]) willow(x,z);
   // 校门与广场南口斑马线。
   for (const z of [121.6,122.4,123.2,124]) box('zebra stripe',0,-.165,z,6.4,.015,.55,0xf5f2ea);
   for (const z of [54.6,55.4,56.2,57]) box('zebra stripe',0,-.105,z,5.6,.015,.55,0xf5f2ea);
   scene.traverse(o => { if (!o.isMesh) return; o.receiveShadow = true; const n = o.name || ''; o.castShadow =!(n.includes('ceiling') || n.includes('wall') || n.includes('floor') || n.includes('glass') || n.includes('sign') || n.includes('skyline') || n.includes('cloud')) &&!(o.material && o.material.isMeshBasicMaterial);});
+  let camDist=4.5;
+  renderer.domElement.addEventListener('wheel',e=>{if(document.pointerLockElement===renderer.domElement)camDist=Math.max(2.5,Math.min(7,camDist+Math.sign(e.deltaY)*.5));},{passive:true});
+  function placeCamera(){
+    const savedPos=camera.position.clone(),head=new THREE.Vector3(savedPos.x,savedPos.y+.1,savedPos.z);
+    const f=new THREE.Vector3(-Math.cos(pitch)*Math.sin(yaw),Math.sin(pitch),-Math.cos(pitch)*Math.cos(yaw));
+    const want=head.clone().addScaledVector(f,-camDist),delta=want.clone().sub(head);let limit=1;
+    const slab=(lo,hi,o,d)=>{if(Math.abs(d)<1e-8)return o>=lo&&o<=hi?[-Infinity,Infinity]:null;let a=(lo-o)/d,b=(hi-o)/d;return a<b?[a,b]:[b,a];};
+    for(const c of colliders){if(c.door)continue;let b=c.bounds;
+      if(c.mesh){const q=c.mesh.geometry&&c.mesh.geometry.parameters;if(!q)continue;const m=c.mesh.position;b={minX:m.x-q.width/2,maxX:m.x+q.width/2,minZ:m.z-q.depth/2,maxZ:m.z+q.depth/2};}
+      if(!b)continue;let y0=c.y0!==undefined?c.y0:(c.mesh?c.mesh.position.y-(c.mesh.geometry.parameters.height||1)/2:0);let y1=c.y1!==undefined?c.y1:(c.mesh?c.mesh.position.y+(c.mesh.geometry.parameters.height||1)/2:y0+6);if(c.bounds){y0=c.y0<=1?0:3.6;y1=y0+6;}
+      if(head.x>=b.minX&&head.x<=b.maxX&&head.y>=y0&&head.y<=y1&&head.z>=b.minZ&&head.z<=b.maxZ)continue;
+      const xs=slab(b.minX,b.maxX,head.x,delta.x),ys=slab(y0,y1,head.y,delta.y),zs=slab(b.minZ,b.maxZ,head.z,delta.z);if(!xs||!ys||!zs)continue;const en=Math.max(xs[0],ys[0],zs[0]),ex=Math.min(xs[1],ys[1],zs[1]);if(en<=ex&&ex>=0&&en<=limit&&en>=0)limit=Math.max(0,en-.25/Math.max(delta.length(),.001));
+    }
+    let pos=head.clone().addScaledVector(delta,limit);const hs=surfaceHeightsAt(want.x,want.z),fl=hs.filter(h=>h<=want.y+.65).reduce((a,h)=>Math.max(a,h),0);pos.y=Math.max(pos.y,fl+.3);camera.position.copy(pos);camera.lookAt(head.x,head.y+.05,head.z);return savedPos;
+  }
   function animate(now) {
     requestAnimationFrame(animate);
     const dt = Math.min((now - last) / 1000, .05); last = now;
     update(dt);
+    updatePlayerAvatar(dt);
     if(saveEnabled&&!gameState.finished&&now-lastSaveCheck>=500){lastSaveCheck=now;try{const snapshot=JSON.stringify(makeSaveSnapshot());if(snapshot!==lastSavedSnapshot)saveGame();}catch(_){}}
+    const savedPos=placeCamera();
     renderer.render(scene, camera);
+    camera.position.copy(savedPos);camera.rotation.set(pitch,yaw,0,'YXZ');
   }
   animate(last);
   window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
