@@ -130,9 +130,9 @@
   const sun = new THREE.DirectionalLight(0xffe3b8, 2.2);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -52; sun.shadow.camera.right = 52; sun.shadow.camera.top = 52; sun.shadow.camera.bottom = -52; sun.shadow.camera.near = 1; sun.shadow.camera.far = 170;
+  sun.shadow.camera.left = -28; sun.shadow.camera.right = 35; sun.shadow.camera.top = 32; sun.shadow.camera.bottom = -24; sun.shadow.camera.near = 10; sun.shadow.camera.far = 85;
   sun.shadow.bias = -0.0005;
-  sun.position.set(-25, 46, 60); sun.target.position.set(0, 0, 34); scene.add(sun, sun.target);
+  sun.position.set(-16, 36, 32); sun.target.position.set(0, 0, 0); scene.add(sun, sun.target);
 
   const materials = {};
   const mat = (color) => materials[color] || (materials[color] = new THREE.MeshLambertMaterial({ color }));
