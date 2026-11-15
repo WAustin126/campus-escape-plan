@@ -327,8 +327,32 @@ function deskSetPro(x,z){
     const i=deskSetPro.index++;if(i%2===0)proBox('pro book',x-.25,1.53,z,.34,.05,.24,mat([0x7a4a3a,0x3a5a7a,0x4a7a4a,0x8a7a3a,0x5a4a7a][i%5]));else if(i%4===1)proCylinder('pro cup',x+.4,1.57,z+.1,.05,.045,.12,mat(Math.floor(i/4)%2===0?0xd8d8d8:0x7ab0d8));
     aoPad(x,z+.35,2.0,2.0,0);addColliderBounds(x-.72, x+.72, z-.4, z+1.15, B1.y0, B1.y1);
   }deskSetPro.index=0;
+  // 玩家教室课桌小物件：按桌号轮换组合，两个实例化网格（盒体/圆柱）共用几何与材质，不登记碰撞体。
+  function deskClutter(){
+    const boxes=[],cyls=[],T=1.505,cols=[0x7a4a3a,0x3a5a7a,0x4a7a4a,0x8a7a3a,0x5a4a7a,0xa8483c],bagCols=[0x2f3b52,0x7a2f2f,0x2f5a45,0x3a3a3a];
+    const rnd=(i,n)=>{const v=Math.sin(i*12.9898+n*78.233)*43758.5453;return v-Math.floor(v)-.5;};
+    let i=0;
+    for(const z of [-7.4,-4.9,-2.4,.1,2.6])for(const x of [-4.3,-1.4,1.5,4.4]){
+      if(i%3!==1){const n=i%3?3:2;for(let k=0;k<n;k++)boxes.push([x+.45+rnd(i,k)*.05,T+.02+k*.04,z-.2+rnd(i,k+4)*.04,.3-k*.03,.04,.22-k*.01,rnd(i,k+8)*.5,cols[(i+k*2)%6]]);} // 书堆
+      if(i%4===3||i%4===1||i%8===6){const ox=i%4===1?-.2:.25,ry=rnd(i,12)*.3,cx=Math.cos(ry)*.105,cz=-Math.sin(ry)*.105; // 摊开的书
+        boxes.push([x+ox,T+.004,z+.14,.44,.008,.3,ry,cols[(i+3)%6]]);
+        for(const s of [-1,1])boxes.push([x+ox+s*cx,T+.016,z+.14+s*cz,.2,.014,.28,ry,0xf2eee2,s*.06]);}
+      if(i%4===3||i%5===0)cyls.push([x-.58+rnd(i,13)*.06,T+.05+(i%3)*.01,z-.22+rnd(i,14)*.06,1,.1+(i%3)*.02,1,0,[0xd8d8d8,0x7ab0d8,0xe0b060,0x6aa58a][i%4]]); // 水杯
+      if(i%2===0||i%8===3){const ry=rnd(i,15)*.5;boxes.push([x-.32+rnd(i,16)*.1,T+.025,z+.28,.26,.05,.09,ry,[0x2f3b52,0xc8553d,0x4a7a4a,0xd9a441][(i>>1)%4]]); // 笔袋与笔
+        if(i%3!==2)boxes.push([x-.08+rnd(i,17)*.06,T+.007,z+.3+rnd(i,18)*.04,.16,.014,.014,ry+.6,[0x1f4fa8,0xc0392b,0x222222][i%3]]);}
+      if(i%3!==0){const s=i%2?1:-1,bc=bagCols[(i+(i>>2))%4]; // 挂在桌侧的书包
+        boxes.push([x+s*.83,1.12,z+.04,.13,.44,.34,0,bc,s*-.05]);boxes.push([x+s*.905,1.03,z+.04,.03,.2,.24,0,bc,s*-.05]);}
+      i++;
+    }
+    const d=new THREE.Object3D(),c=new THREE.Color();
+    const build=(geo,list,name)=>{const m=new THREE.InstancedMesh(geo,mat(0xffffff),list.length);m.name=name;
+      list.forEach((p,k)=>{d.position.set(p[0],p[1],p[2]);d.scale.set(p[3],p[4],p[5]);d.rotation.set(0,p[6]||0,p[8]||0);d.updateMatrix();m.setMatrixAt(k,d.matrix);m.setColorAt(k,c.setHex(p[7]));});
+      scene.add(m);return m;};
+    build(new THREE.BoxGeometry(1,1,1),boxes,'pro desk clutter');build(new THREE.CylinderGeometry(.045,.04,1,10),cyls,'pro desk clutter cup');
+  }
   // 主教室A 5x4座位。
   for(const z of [-7.4,-4.9,-2.4,.1,2.6])for(const x of [-4.3,-1.4,1.5,4.4])deskSetPro(x,z);
+  deskClutter();
   // A/C 的三乘三课桌、板书、窗帘与静态吊扇。
   for(const [label,x0,x1,floor,band] of [['A',2.4,10,0,B1],['C',2.4,10,3.6,B2]]){for(let row=0;row<3;row++)for(let col=0;col<3;col++)deskSet(x0+1.35+col*2.15,-21.1+row*2.05,floor,band,label+' classroom desk');box(label+' classroom blackboard',(x0+x1)/2,floor+2.65,-22.82,x1-x0-1.2,1.7,.12,0x176d4b);box(label+' curtain left',x0+.35,floor+2.1,-22.55,.12,3.8,1.1,0x7a9e7e);box(label+' curtain right',x1-.35,floor+2.1,-22.55,.12,3.8,1.1,0x7a9e7e);const fan=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,.12,10),mat(0x59636b));fan.name=label+' static ceiling fan';fan.position.set((x0+x1)/2,floor+5.75,-19);scene.add(fan);}
   for(const [label,x0,x1,floor,band] of [['A',2.4,10,0,B1],['C',2.4,10,3.6,B2]]){box(label+' podium',(x0+x1)/2,floor+.6,-22,1.4,1.2,.8,0xc47a42);addColliderBounds((x0+x1)/2-.7,(x0+x1)/2+.7,-22.4,-21.6,band.y0,band.y1);}
