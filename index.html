@@ -292,14 +292,38 @@
   const proCylinder=(name,x,y,z,r1,r2,h,material,segments=10)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,segments),material);m.name=name;m.position.set(x,y,z);scene.add(m);return m;};
   function deskSet(x,z,y=0,band=B1,name='desk'){box(name+' top',x,y+1.45,z,1.35,.16,.72,0xd59a55);for(const dx of [-.55,.55])for(const dz of [-.27,.27])box(name+' leg',x+dx,y+.72,z+dz,.1,1.35,.1,0x8f603a);box(name+' chair seat',x,y+.76,z+.82,.68,.14,.55,0x4d9ab0);box(name+' chair back',x,y+1.2,z+1.08,.68,.82,.1,0x4d9ab0);addColliderBounds(x-.72,x+.72,z-.4,z+1.15,band.y0,band.y1);}
   const classDeskMat=pbrMat('real-deskwood',1,1,.38,.8),classDrawerMat=pbrMat('real-deskwood',1,1,.45,.8,0xa8895e),classFloorMat=pbrMat('real-floor',3.6,6,.6,.6),classBoardMat=pbrMat('real-blackboard',2.4,1,.9,.5);
+  // 玩家教室家具倒角：只替换几何体（外形尺寸不变、不新增网格），棱边法线在相邻面之间过渡，呈圆角高光。
+  const bevelGeoCache = {};
+  function bevelGeo(sx, sy, sz, r) {
+    r = Math.min(r, Math.min(sx, sy, sz) * .45);
+    const key = [sx, sy, sz, r].join('_'); if (bevelGeoCache[key]) return bevelGeoCache[key];
+    const h = [sx/2, sy/2, sz/2], pos = [], nor = [], uv = [], idx = [], V = {}, uA = [2,0,0], vA = [1,2,1];
+    const code = sg => (sg[0] > 0 ? 4 : 0) + (sg[1] > 0 ? 2 : 0) + (sg[2] > 0 ? 1 : 0);
+    for (let a = 0; a < 3; a++) for (const s0 of [-1,1]) for (const s1 of [-1,1]) for (const s2 of [-1,1]) {
+      const sg = [s0,s1,s2], p = [0,1,2].map(k => k === a ? sg[k]*h[k] : sg[k]*(h[k]-r)), n = [0,0,0]; n[a] = sg[a];
+      V[a*8 + code(sg)] = pos.length / 3; pos.push(...p); nor.push(...n); uv.push(p[uA[a]]/(2*h[uA[a]]) + .5, p[vA[a]]/(2*h[vA[a]]) + .5);
+    }
+    const tri = (i, j, k) => { const P = q => [pos[q*3], pos[q*3+1], pos[q*3+2]], A = P(i), B = P(j), C = P(k), e1 = [B[0]-A[0],B[1]-A[1],B[2]-A[2]], e2 = [C[0]-A[0],C[1]-A[1],C[2]-A[2]];
+      const c = [e1[1]*e2[2]-e1[2]*e2[1], e1[2]*e2[0]-e1[0]*e2[2], e1[0]*e2[1]-e1[1]*e2[0]];
+      if (c[0]*(A[0]+B[0]+C[0]) + c[1]*(A[1]+B[1]+C[1]) + c[2]*(A[2]+B[2]+C[2]) < 0) idx.push(i, k, j); else idx.push(i, j, k); };
+    const quad = (i, j, k, l) => { tri(i, j, k); tri(i, k, l); };
+    for (let a = 0; a < 3; a++) { const b1 = (a+1)%3, c1 = (a+2)%3; for (const s of [-1,1]) { const at = (sb, sc) => { const sg = [0,0,0]; sg[a] = s; sg[b1] = sb; sg[c1] = sc; return V[a*8 + code(sg)]; }; quad(at(-1,-1), at(1,-1), at(1,1), at(-1,1)); } }
+    for (const [a, b1, c1] of [[0,1,2],[0,2,1],[1,2,0]]) for (const sa of [-1,1]) for (const sb of [-1,1]) { const at = (ax, sc) => { const sg = [0,0,0]; sg[a] = sa; sg[b1] = sb; sg[c1] = sc; return V[ax*8 + code(sg)]; }; quad(at(a,-1), at(a,1), at(b1,1), at(b1,-1)); }
+    for (let c = 0; c < 8; c++) tri(V[c], V[8 + c], V[16 + c]);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx);
+    g.parameters = { width: sx, height: sy, depth: sz };
+    return bevelGeoCache[key] = g;
+  }
+  const bevel = (m, r) => { const q = m.geometry.parameters; m.geometry.dispose(); m.geometry = bevelGeo(q.width, q.height, q.depth, r); return m; };
 function deskSetPro(x,z){
-    proBox('pro desk top',x,1.47,z,1.5,.07,.8,classDeskMat);
-    proBox('pro desk drawer',x,1.16,z-.02,1.05,.5,.55,mat(0x2e2a26));
-    proBox('pro desk drawer front',x,1.16,z-.33,1.05,.5,.04,classDrawerMat);
+    bevel(proBox('pro desk top',x,1.47,z,1.5,.07,.8,classDeskMat),.016);
+    bevel(proBox('pro desk drawer',x,1.16,z-.02,1.05,.5,.55,mat(0x2e2a26)),.02);
+    bevel(proBox('pro desk drawer front',x,1.16,z-.33,1.05,.5,.04,classDrawerMat),.012);
     proBox('pro desk handle',x,1.16,z-.37,.18,.03,.03,metalMat);
-    for(const dx of [-.62,.62])for(const dz of [-.28,.28])proBox('pro desk leg',x+dx,.72,z+dz,.06,1.44,.06,metalMat);
-    proBox('pro chair seat',x,.78,z+.8,.62,.06,.55,classDeskMat);proBox('pro chair back',x,1.22,z+1.07,.62,.6,.06,classDeskMat);
-    for(const dx of [-.24,.24])for(const dz of [-.2,.2])proBox('pro chair leg',x+dx,.375,z+.8+dz,.05,.75,.05,metalMat);
+    for(const dx of [-.62,.62])for(const dz of [-.28,.28])bevel(proBox('pro desk leg',x+dx,.72,z+dz,.06,1.44,.06,metalMat),.012);
+    bevel(proBox('pro chair seat',x,.78,z+.8,.62,.06,.55,classDeskMat),.016);bevel(proBox('pro chair back',x,1.22,z+1.07,.62,.6,.06,classDeskMat),.016);
+    for(const dx of [-.24,.24])for(const dz of [-.2,.2])bevel(proBox('pro chair leg',x+dx,.375,z+.8+dz,.05,.75,.05,metalMat),.01);
     const i=deskSetPro.index++;if(i%2===0)proBox('pro book',x-.25,1.53,z,.34,.05,.24,mat([0x7a4a3a,0x3a5a7a,0x4a7a4a,0x8a7a3a,0x5a4a7a][i%5]));else if(i%4===1)proCylinder('pro cup',x+.4,1.57,z+.1,.05,.045,.12,mat(Math.floor(i/4)%2===0?0xd8d8d8:0x7ab0d8));
     aoPad(x,z+.35,2.0,2.0,0);addColliderBounds(x-.72, x+.72, z-.4, z+1.15, B1.y0, B1.y1);
   }deskSetPro.index=0;
@@ -308,7 +332,7 @@ function deskSetPro(x,z){
   // A/C 的三乘三课桌、板书、窗帘与静态吊扇。
   for(const [label,x0,x1,floor,band] of [['A',2.4,10,0,B1],['C',2.4,10,3.6,B2]]){for(let row=0;row<3;row++)for(let col=0;col<3;col++)deskSet(x0+1.35+col*2.15,-21.1+row*2.05,floor,band,label+' classroom desk');box(label+' classroom blackboard',(x0+x1)/2,floor+2.65,-22.82,x1-x0-1.2,1.7,.12,0x176d4b);box(label+' curtain left',x0+.35,floor+2.1,-22.55,.12,3.8,1.1,0x7a9e7e);box(label+' curtain right',x1-.35,floor+2.1,-22.55,.12,3.8,1.1,0x7a9e7e);const fan=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,.12,10),mat(0x59636b));fan.name=label+' static ceiling fan';fan.position.set((x0+x1)/2,floor+5.75,-19);scene.add(fan);}
   for(const [label,x0,x1,floor,band] of [['A',2.4,10,0,B1],['C',2.4,10,3.6,B2]]){box(label+' podium',(x0+x1)/2,floor+.6,-22,1.4,1.2,.8,0xc47a42);addColliderBounds((x0+x1)/2-.7,(x0+x1)/2+.7,-22.4,-21.6,band.y0,band.y1);}
-  proBox('pro blackboard',.15,3.25,-10.94,7.2,2.2,.14,classBoardMat);proBox('pro class floor',.15,0,-2.2,12.1,.012,18,classFloorMat);box('board frame top',.15,4.39,-10.82,7.5,.12,.2,0xd7a94f);box('board frame bottom',.15,2.11,-10.82,7.5,.12,.2,0xd7a94f);box('podium',0,.65,-9.2,2.1,1.3,1.1,0xc47a42);addColliderBounds(-1.05,1.05,-9.75,-8.65,B1.y0,B1.y1);
+  proBox('pro blackboard',.15,3.25,-10.94,7.2,2.2,.14,classBoardMat);proBox('pro class floor',.15,0,-2.2,12.1,.012,18,classFloorMat);box('board frame top',.15,4.39,-10.82,7.5,.12,.2,0xd7a94f);box('board frame bottom',.15,2.11,-10.82,7.5,.12,.2,0xd7a94f);bevel(box('podium',0,.65,-9.2,2.1,1.3,1.1,0xc47a42),.03);addColliderBounds(-1.05,1.05,-9.75,-8.65,B1.y0,B1.y1);
   const screenMat=texMat('real-screen',1,1);screenMat.emissive=new THREE.Color(0x555f66);
   proBox('pro podium screen',0,1.66,-9.38,.78,.48,.05,screenMat,-.1);proBox('pro podium stand',0,1.42,-9.36,.12,.3,.12,mat(0x2a2c2e));proBox('pro podium keyboard',0,1.33,-9,.6,.03,.22,mat(0x2a2c2e));aoPad(0,-9.2,2.6,1.6,0);
   for(const [x,y,sx,sy] of [[.15,4.39,7.5,.09],[.15,2.11,7.5,.09],[-3.5,3.25,.09,2.3],[3.8,3.25,.09,2.3]])proBox('pro board frame',x,y,-10.79,sx,sy,.05,metalMat);
