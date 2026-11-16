@@ -58,9 +58,10 @@
 <div id="basketballOverlay"><button id="basketballClose" type="button">✕ 关闭</button><iframe title="篮球小游戏" src="about:blank"></iframe></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
 <script>
-window.__errs=[];['error','warn'].forEach(k=>{const o=console[k];console[k]=function(){try{window.__errs.push(k+': '+[...arguments].map(a=>String((a&&a.message)||a)).join(' ').slice(0,300));}catch(e){} o.apply(console,arguments);};});
-window.addEventListener('error',e=>{window.__errs.push('window.onerror: '+String(e.message||'').slice(0,200));});
-document.addEventListener('DOMContentLoaded',()=>{const d=document.createElement('div');d.id='fxbadge';d.style.cssText='position:fixed;top:0;right:0;z-index:999;background:#000;color:#0f0;font:12px monospace;padding:4px;max-width:62vw;white-space:pre-wrap';document.body.appendChild(d);setInterval(()=>{const p=window.__postFX;d.textContent='FX level='+(p?p.level:'?')+' ema='+(p?Math.round(p.ema):'?')+' errs='+window.__errs.length+(window.__errs.length?'\n'+window.__errs.slice(0,3).join('\n'):'');},500);});
+window.__errs=[];window.__emap={};
+['error','warn'].forEach(k=>{const o=console[k];console[k]=function(){try{const m=[...arguments].map(a=>String((a&&a.message)||a)).join(' ').slice(0,220);window.__errs.push(m);window.__emap[m]=(window.__emap[m]||0)+1;}catch(e){} o.apply(console,arguments);};});
+window.addEventListener('error',e=>{const m='window.onerror: '+String(e.message||'').slice(0,200);window.__errs.push(m);window.__emap[m]=(window.__emap[m]||0)+1;});
+document.addEventListener('DOMContentLoaded',()=>{const d=document.createElement('div');d.id='fxbadge';d.style.cssText='position:fixed;top:0;right:0;z-index:999;background:#000;color:#0f0;font:12px monospace;padding:4px;max-width:62vw;white-space:pre-wrap';document.body.appendChild(d);setInterval(()=>{const p=window.__postFX;const es=Object.entries(window.__emap).sort((a,b)=>{const aw=/webgl|shader|program|glsl/i.test(a[0])?1:0,bw=/webgl|shader|program|glsl/i.test(b[0])?1:0;return bw-aw||b[1]-a[1];}).slice(0,4).map(([m,n])=>'x'+n+' '+m).join('\n');d.textContent='FX level='+(p?p.level:'?')+' stage='+(p?p.stage:'?')+' msaa='+(p?p.msaa:'?')+' webgl2='+(window.__renderer?window.__renderer.capabilities.isWebGL2:'?')+' ema='+(p?Math.round(p.ema):'?')+' errs='+window.__errs.length+' uniq='+Object.keys(window.__emap).length+(es?'\n'+es:'');},500);});
 </script>
 
 <script>
@@ -1427,8 +1428,8 @@ function deskSetPro(x,z){
     let pos=head.clone().addScaledVector(delta,limit);const hs=surfaceHeightsAt(want.x,want.z),fl=hs.filter(h=>h<=want.y+.65).reduce((a,h)=>Math.max(a,h),0);pos.y=Math.max(pos.y,fl+.3);camera.position.copy(pos);camera.lookAt(head.x,head.y+.05,head.z);return savedPos;
   }
   // ===== 画质第5步：后期处理（手写管线：泛光+暗角+胶片颗粒+暖调分级；按P键切换档位，帧率低自动降级） =====
-  const postFX = { level: 2, auto: true, ema: 60, lowT: 0, highT: 0, lastT: 0 };
-  window.__postFX = postFX;
+  const postFX = { level: 2, auto: true, ema: 60, lowT: 0, highT: 0, lastT: 0, msaa: 4, stage: 'full' };
+  window.__postFX = postFX; window.__renderer = renderer;
   const fsCam = new THREE.Camera();
   const fsScene = new THREE.Scene();
   const fsMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), null);
@@ -1437,12 +1438,12 @@ function deskSetPro(x,z){
   function fsMat(frag, uniforms) { return new THREE.ShaderMaterial({ vertexShader: FS_VERT, fragmentShader: frag, uniforms, depthTest: false, depthWrite: false }); }
   const matBright = fsMat('uniform sampler2D tSrc;uniform float uTh;varying vec2 vUv;void main(){vec3 c=texture2D(tSrc,vUv).rgb;float l=dot(c,vec3(.2126,.7152,.0722));float k=smoothstep(uTh,uTh+.35,l);gl_FragColor=vec4(c*k,1.);}', { tSrc: { value: null }, uTh: { value: .72 } });
   const matBlur = fsMat('uniform sampler2D tSrc;uniform vec2 uDir;varying vec2 vUv;void main(){vec3 s=texture2D(tSrc,vUv).rgb*.227027;vec2 a=uDir*1.3846153;vec2 b=uDir*3.2307692;s+=texture2D(tSrc,vUv+a).rgb*.3162162;s+=texture2D(tSrc,vUv-a).rgb*.3162162;s+=texture2D(tSrc,vUv+b).rgb*.0702703;s+=texture2D(tSrc,vUv-b).rgb*.0702703;gl_FragColor=vec4(s,1.);}', { tSrc: { value: null }, uDir: { value: new THREE.Vector2() } });
-  const matComp = fsMat('uniform sampler2D tSrc;uniform sampler2D tBloom;uniform float uBloom;uniform float uTime;varying vec2 vUv;float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}void main(){vec3 c=texture2D(tSrc,vUv).rgb;c+=texture2D(tBloom,vUv).rgb*uBloom;c=mix(c,c*vec3(1.04,1.,.96),.5);vec2 d=vUv-.5;float vig=smoothstep(.95,.45,dot(d,d)*1.6);c*=mix(1.,vig,.32);c+=(hash(vUv*vec2(1920.,1080.)+fract(uTime)*7.13)-.5)*.028;gl_FragColor=vec4(c,1.);#include <colorspace_fragment>}', { tSrc: { value: null }, tBloom: { value: null }, uBloom: { value: .55 }, uTime: { value: 0 } });
+  const matComp = fsMat('uniform sampler2D tSrc;uniform sampler2D tBloom;uniform float uBloom;uniform float uTime;uniform float uSceneMix;varying vec2 vUv;float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}void main(){vec3 c=texture2D(tSrc,vUv).rgb*uSceneMix;c+=texture2D(tBloom,vUv).rgb*uBloom;c=mix(c,c*vec3(1.04,1.,.96),.5);vec2 d=vUv-.5;float vig=smoothstep(.95,.45,dot(d,d)*1.6);c*=mix(1.,vig,.32);c+=(hash(vUv*vec2(1920.,1080.)+fract(uTime)*7.13)-.5)*.028;gl_FragColor=vec4(c,1.);#include <colorspace_fragment>}', { tSrc: { value: null }, tBloom: { value: null }, uBloom: { value: .55 }, uTime: { value: 0 }, uSceneMix: { value: 1 } });
   let rtScene = null, rtA = null, rtB = null;
   function buildRTs(w, h) {
     if (rtScene) { rtScene.dispose(); rtA.dispose(); rtB.dispose(); }
     rtScene = new THREE.WebGLRenderTarget(w, h, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
-    rtScene.samples = 4;
+    rtScene.samples = postFX.msaa;
     const bw = Math.max(2, w >> 1), bh = Math.max(2, h >> 1);
     rtA = new THREE.WebGLRenderTarget(bw, bh, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false });
     rtB = rtA.clone();
@@ -1460,6 +1461,11 @@ function deskSetPro(x,z){
     const size = renderer.getDrawingBufferSize(new THREE.Vector2());
     if (!rtScene || rtScene.width !== size.x || rtScene.height !== size.y) buildRTs(size.x, size.y);
     renderer.setRenderTarget(rtScene); renderer.render(scene, camera);
+    if (postFX.stage === 'scene') {
+      matComp.uniforms.tSrc.value = rtScene.texture; matComp.uniforms.tBloom.value = rtScene.texture;
+      matComp.uniforms.uBloom.value = 0; matComp.uniforms.uSceneMix.value = 1; matComp.uniforms.uTime.value = now / 1000;
+      fsPass(matComp, null); renderer.setRenderTarget(null); return;
+    }
     matBright.uniforms.tSrc.value = rtScene.texture; fsPass(matBright, rtA);
     const texel = new THREE.Vector2(1 / rtA.width, 1 / rtA.height);
     const iters = postFX.level === 2 ? 2 : 1;
@@ -1469,6 +1475,7 @@ function deskSetPro(x,z){
     }
     matComp.uniforms.tSrc.value = rtScene.texture; matComp.uniforms.tBloom.value = rtA.texture;
     matComp.uniforms.uBloom.value = postFX.level === 2 ? .55 : .4;
+    matComp.uniforms.uSceneMix.value = postFX.stage === 'bloom' ? 0 : 1;
     matComp.uniforms.uTime.value = now / 1000;
     fsPass(matComp, null);
     renderer.setRenderTarget(null);
@@ -1477,6 +1484,8 @@ function deskSetPro(x,z){
   const Q = new URLSearchParams(location.search);
   if (Q.get('fx') === '0') { postFX.level = 0; postFX.auto = false; }
   if (Q.get('fx') === '1') { postFX.level = 1; postFX.auto = false; }
+  if (Q.get('stage')) postFX.stage = Q.get('stage');
+  if (Q.get('msaa') === '0') postFX.msaa = 0;
   if (Q.get('naked') === '1') { document.getElementById('overlay').style.display = 'none'; }
   function animate(now) {
     requestAnimationFrame(animate);
