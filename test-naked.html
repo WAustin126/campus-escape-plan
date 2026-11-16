@@ -579,26 +579,55 @@ function deskSetPro(x,z){
   for(const [z,label] of [[37.5,'食堂 · 图书馆 →'],[55,'宿舍 · 校医院 →']]) { fieldBox('plaza west sign post',-17.2,1.1,z,.12,2.2,.12,0x6e6a61,true); fieldSign(label,2,.7,'#2e5e4e','#ffffff',-17.2,2,z+.1); fieldSign(label,2,.7,'#2e5e4e','#ffffff',-17.2,2,z-.1,Math.PI); }
   // 天空中的几何云朵。
   for (const [cx,cy,cz] of [[-50,31,24],[-25,36,48],[0,29,76],[25,38,32],[48,33,92],[70,30,59],[5,39,106]]) for(let i=0;i<3;i++){const cloud=new THREE.Mesh(new THREE.SphereGeometry(1,12,8),new THREE.MeshBasicMaterial({color:0xffffff,fog:false}));cloud.name='cloud';cloud.scale.set(3.2+(i%2)*.7,.55+(i%2)*.12,1.45);cloud.position.set(cx+(i-1)*2.1,cy+(i===1?.4:0),cz+(i%2)*.5);scene.add(cloud);}
+  const pmatCache = {};
+  const pmat = (color) => pmatCache[color] || (pmatCache[color] = new THREE.MeshStandardMaterial({ color, roughness: .85, metalness: 0 }));
   function blockPerson(opts) {
-    const g=new THREE.Group(); g.name='person group';
-    const limb=(x,y,z,w,h,d,color,name)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(color));m.name='person '+name; m.position.set(x,y,z);g.add(m);return m;};
-    const pivot=(x,y,name)=>{const q=new THREE.Group();q.name='person '+name;q.position.set(x,y,0);g.add(q);return q;};
-    const legL=pivot(-.14,.70,'leg left'),legR=pivot(.14,.70,'leg right');
-    for(const [q,n] of [[legL,'left'],[legR,'right']]){const m=new THREE.Mesh(new THREE.BoxGeometry(.24,.70,.26),mat(opts.pants));m.name='person leg '+n;m.position.y=-.35;q.add(m);}
-    limb(0,1.01,0,.58,.62,.30,opts.torso,'torso');
-    if(opts.accent)limb(0,1.22,0,.59,.10,.31,opts.accent,'accent');
-    const armL=pivot(-.40,1.28,'arm left'),armR=pivot(.40,1.28,'arm right');
-    for(const [q,n] of [[armL,'left'],[armR,'right']]){let m=new THREE.Mesh(new THREE.BoxGeometry(.20,.62,.24),mat(opts.torso));m.name='person sleeve '+n;m.position.y=-.27;q.add(m);m=new THREE.Mesh(new THREE.BoxGeometry(.20,.12,.24),mat(opts.skin));m.name='person hand '+n;m.position.y=-.56;q.add(m);}
-    const head=new THREE.Group();head.name='person head';head.position.y=1.32;g.add(head);
-    const canvas=document.createElement('canvas');canvas.width=canvas.height=64;const c=canvas.getContext('2d');c.fillStyle=opts.face==='dark'?'#171522':'#'+opts.skin.toString(16).padStart(6,'0');c.fillRect(0,0,64,64);c.fillStyle=opts.face==='dark'?'#c8c8dc':'#30251f';c.fillRect(14,28,9,11);c.fillRect(41,28,9,11);c.fillRect(27,47,10,3);
-    const face=new THREE.CanvasTexture(canvas);face.colorSpace=THREE.SRGBColorSpace;face.magFilter=THREE.NearestFilter;
-    const hmat=mat(opts.hair),skinmat=mat(opts.skin),fm=new THREE.MeshLambertMaterial({map:face});
-    const hm=new THREE.Mesh(new THREE.BoxGeometry(.46,.44,.44),[skinmat,skinmat,hmat,skinmat,fm,hmat]);hm.name='person head mesh';hm.position.y=.22;head.add(hm);
-    if(opts.longHair)limb(0,1.48,-.20,.48,.52,.10,opts.hair,'long hair');
-    if(opts.hood)limb(0,1.70,0,.58,.30,.56,opts.hood,'hood');
-    return {group:g,armL,armR,legL,legR};
+    const g = new THREE.Group(); g.name = 'person group';
+    const pivot = (x, y, name) => { const q = new THREE.Group(); q.name = 'person ' + name; q.position.set(x, y, 0); g.add(q); return q; };
+    const legL = pivot(-.14, .70, 'leg left'), legR = pivot(.14, .70, 'leg right');
+    for (const [q, n] of [[legL, 'left'], [legR, 'right']]) {
+      const leg = new THREE.Mesh(bevelGeo(.24, .70, .26, .05), pmat(opts.pants)); leg.name = 'person leg ' + n; leg.position.y = -.35; q.add(leg);
+      const shoe = new THREE.Mesh(new THREE.BoxGeometry(.25, .09, .38), pmat(opts.shoes || 0x232327)); shoe.name = 'person shoe ' + n; shoe.position.set(0, -.665, .05); q.add(shoe);
+    }
+    const torso = new THREE.Mesh(bevelGeo(.58, .62, .30, .06), pmat(opts.torso)); torso.name = 'person torso'; torso.position.set(0, 1.01, 0); g.add(torso);
+    if (opts.accent) { const ac = new THREE.Mesh(bevelGeo(.59, .10, .31, .04), pmat(opts.accent)); ac.name = 'person accent'; ac.position.set(0, 1.22, 0); g.add(ac); }
+    if (opts.backpack) {
+      const bp = new THREE.Mesh(bevelGeo(.40, .48, .18, .05), pmat(opts.backpack)); bp.name = 'person backpack'; bp.position.set(0, 1.05, -.25); g.add(bp);
+      for (const sx of [-.14, .14]) { const st = new THREE.Mesh(new THREE.BoxGeometry(.07, .44, .02), pmat(opts.backpack)); st.name = 'person backpack strap'; st.position.set(sx, 1.08, .16); g.add(st); }
+    }
+    const armL = pivot(-.40, 1.28, 'arm left'), armR = pivot(.40, 1.28, 'arm right');
+    for (const [q, n] of [[armL, 'left'], [armR, 'right']]) {
+      const sl = new THREE.Mesh(bevelGeo(.20, .62, .24, .05), pmat(opts.torso)); sl.name = 'person sleeve ' + n; sl.position.y = -.27; q.add(sl);
+      const hd = new THREE.Mesh(new THREE.SphereGeometry(.085, 14, 10), pmat(opts.skin)); hd.name = 'person hand ' + n; hd.position.y = -.60; hd.scale.set(1, 1.25, 1); q.add(hd);
+    }
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(.07, .085, .14, 12), pmat(opts.skin)); neck.name = 'person neck'; neck.position.set(0, 1.35, 0); g.add(neck);
+    const head = new THREE.Group(); head.name = 'person head'; head.position.y = 1.36; g.add(head);
+    const skull = new THREE.Mesh(new THREE.SphereGeometry(.235, 24, 18), pmat(opts.skin)); skull.name = 'person head mesh'; skull.position.y = .20; skull.scale.set(.94, 1.06, .98); head.add(skull);
+    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 256; const c = canvas.getContext('2d');
+    const dark = opts.face === 'dark', ink = dark ? '#cfcfe0' : '#33261e';
+    c.fillStyle = ink;
+    for (const ex of [88, 168]) { c.beginPath(); c.ellipse(ex, 118, 13, 17, 0, 0, Math.PI * 2); c.fill(); c.fillStyle = '#ffffff'; c.beginPath(); c.arc(ex + 4, 111, 4.5, 0, Math.PI * 2); c.fill(); c.fillStyle = ink; }
+    c.strokeStyle = dark ? '#cfcfe0' : '#4a382c'; c.lineWidth = 6; c.lineCap = 'round';
+    for (const bx of [88, 168]) { c.beginPath(); c.moveTo(bx - 15, 92); c.quadraticCurveTo(bx, 85, bx + 15, 92); c.stroke(); }
+    c.strokeStyle = dark ? 'rgba(207,207,224,.65)' : 'rgba(120,84,60,.55)'; c.lineWidth = 5;
+    c.beginPath(); c.moveTo(128, 128); c.quadraticCurveTo(133, 142, 127, 148); c.stroke();
+    c.strokeStyle = dark ? '#cfcfe0' : '#8a5a48'; c.lineWidth = 6;
+    c.beginPath(); c.moveTo(112, 172); c.quadraticCurveTo(128, 180, 144, 172); c.stroke();
+    if (!dark) { c.fillStyle = 'rgba(244,150,130,.38)'; for (const bx of [62, 194]) { c.beginPath(); c.ellipse(bx, 152, 15, 9, 0, 0, Math.PI * 2); c.fill(); } }
+    const faceTex = new THREE.CanvasTexture(canvas); faceTex.colorSpace = THREE.SRGBColorSpace; faceTex.anisotropy = 4;
+    const faceGeo = new THREE.PlaneGeometry(.30, .32, 8, 1);
+    const fp = faceGeo.attributes.position; for (let i = 0; i < fp.count; i++) { const fx = fp.getX(i); fp.setZ(i, -.5 * fx * fx / .235); } faceGeo.computeVertexNormals();
+    const facePlane = new THREE.Mesh(faceGeo, new THREE.MeshStandardMaterial({ map: faceTex, transparent: true, roughness: .9, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1 }));
+    facePlane.name = 'person face'; facePlane.position.set(0, .20, .2335); head.add(facePlane);
+    if (opts.hood) {
+      const hood = new THREE.Mesh(new THREE.SphereGeometry(.268, 22, 14, 0, Math.PI * 2, 0, Math.PI * .58), pmat(opts.hood)); hood.name = 'person hood'; hood.position.set(0, .215, -.02); hood.scale.set(.97, 1.05, 1); head.add(hood);
+    } else {
+      const hair = new THREE.Mesh(new THREE.SphereGeometry(.248, 24, 14, 0, Math.PI * 2, 0, Math.PI * .42), pmat(opts.hair)); hair.name = 'person hair'; hair.position.set(0, .228, -.014); hair.scale.set(.96, 1.04, 1); head.add(hair);
+    }
+    if (opts.longHair) { const lh = new THREE.Mesh(bevelGeo(.46, .55, .10, .045), pmat(opts.hair)); lh.name = 'person long hair'; lh.position.set(0, 1.47, -.215); g.add(lh); }
+    return { group: g, armL, armR, legL, legR };
   }
-  const playerAvatar=blockPerson({skin:0xe8b98d,hair:0x2b2320,torso:0x2f6fd0,pants:0x2b3a55,accent:0xffffff});scene.add(playerAvatar.group);
+  const playerAvatar=blockPerson({skin:0xe8b98d,hair:0x2b2320,torso:0x2f6fd0,pants:0x2b3a55,accent:0xffffff,backpack:0xd0483a,shoes:0xf0f0f0});scene.add(playerAvatar.group);
   let avatarX=0,avatarZ=5,walkPhase=0,avatarAmp=0;
   function updatePlayerAvatar(dt){const x=camera.position.x,z=camera.position.z,mx=x-avatarX,mz=z-avatarZ,moved=Math.hypot(mx,mz);avatarX=x;avatarZ=z;playerAvatar.group.position.set(x,playerGroundY,z);walkPhase+=moved*2.4;avatarAmp+=( (moved>.01?.6:0)-avatarAmp)*(1-Math.exp(-12*dt));playerAvatar.armL.rotation.x=Math.sin(walkPhase)*avatarAmp;playerAvatar.armR.rotation.x=-playerAvatar.armL.rotation.x;playerAvatar.legL.rotation.x=-playerAvatar.armL.rotation.x;playerAvatar.legR.rotation.x=playerAvatar.armL.rotation.x;let target=moved>.01?Math.atan2(mx,mz):yaw+Math.PI,delta=Math.atan2(Math.sin(target-playerAvatar.group.rotation.y),Math.cos(target-playerAvatar.group.rotation.y));playerAvatar.group.rotation.y+=delta*(1-Math.exp(-12*dt));}
   // 严老师只沿教室中央过道与走廊中线巡逻，不参与玩家碰撞。
