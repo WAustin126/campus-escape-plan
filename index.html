@@ -40,6 +40,11 @@
   #basketballOverlay iframe { width:100%; height:100%; border:0; display:block; }
   #basketballClose { position:absolute; top:12px; right:14px; z-index:1; border:0; border-radius:8px; padding:9px 13px; background:rgba(20,30,35,.85); color:#fff; font:700 16px system-ui; cursor:pointer; }
   #prompt { position: fixed; left: 50%; bottom: 13%; transform: translateX(-50%); color: white; background: rgba(27, 47, 55, .78); border: 1px solid rgba(255,255,255,.45); border-radius: 8px; padding: 10px 18px; font-size: 17px; z-index: 3; display: none; }
+  #minimap { position: fixed; left: 14px; top: 14px; z-index: 3; border: 2px solid rgba(255,255,255,.7); border-radius: 10px; box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+  #hotbar { position: fixed; left: 50%; bottom: 52px; transform: translateX(-50%); display: flex; gap: 6px; z-index: 3; pointer-events: none; }
+  #hotbar .slot { width: 46px; height: 46px; border: 2px solid rgba(255,255,255,.4); border-radius: 9px; background: rgba(18,26,33,.72); color: #fff; font-size: 21px; display: flex; align-items: center; justify-content: center; position: relative; }
+  #hotbar .slot b { position: absolute; left: 4px; top: 2px; font-size: 10px; opacity: .75; }
+  #hotbar .slot.empty { opacity: .45; }
   #crosshair { position: fixed; left: 50%; top: 50%; width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,.85); box-shadow: 0 0 2px #243746; z-index: 2; pointer-events: none; }
   #dialog { position:fixed; left:50%; bottom:5%; transform:translateX(-50%); display:none; max-width:min(760px,90vw); padding:14px 18px; color:#fff; background:rgba(24,38,47,.92); border:1px solid rgba(255,255,255,.45); border-radius:10px; z-index:4; font-size:17px; }
   #dialog.visible { display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
@@ -51,9 +56,9 @@
 </style>
 </head>
 <body>
-<div id="overlay" class="prestart"><h1>校园逃跑计划</h1><div id="startButtons"></div><p>WASD 移动 · 鼠标视角 · 空格 跳跃 · Shift 奔跑</p></div>
-<div id="hud"><div id="stats"></div><div id="floorBadge">1F</div><div id="skipBadge">⚠ 逃课中</div><div id="alertBar"><div id="alertFill"></div></div><div id="suspicionRow" style="display:none">怀疑值</div><div id="suspicionBar"><div id="suspicionFill"></div></div><div id="questRow" style="display:none"></div><div id="escapeHint" style="display:none">学分已满，去校门离开校园！</div><div id="help">WASD 移动 · 鼠标视角 · E 开门/关门 · F 对话/打篮球/交互 · 空格 跳跃 · Shift 奔跑 · 楼梯间在北走廊两端</div></div>
-<div id="crosshair"></div><div id="prompt">按 E 开门</div><div id="dialog"><img id="dialogPortrait" alt=""><span id="dialogName">严老师</span><span id="dialogText"></span><div id="chatBox" style="display:none"><div id="chatMeta"></div><input id="chatInput" type="text" maxlength="120" placeholder="输入你想说的话…"><button id="chatSend" type="button">发送</button><span id="chatHint">Esc 关闭</span></div></div>
+<div id="overlay" class="prestart"><h1>校园逃跑计划</h1><div id="startButtons"></div><p>WASD 移动 · 鼠标视角 · 空格 跳跃 · Shift 奔跑</p><p>版本：11/16 夜 · 看台/小地图/装备栏版</p></div>
+<div id="hud"><div id="stats"></div><div id="floorBadge">1F</div><div id="skipBadge">⚠ 逃课中</div><div id="alertBar"><div id="alertFill"></div></div><div id="suspicionRow" style="display:none">怀疑值</div><div id="suspicionBar"><div id="suspicionFill"></div></div><div id="questRow" style="display:none"></div><div id="escapeHint" style="display:none">学分已满，去校门离开校园！</div><div id="help">WASD 移动 · 鼠标视角 · E 开门/关门 · F 对话/打篮球/交互 · 空格 跳跃 · Shift 奔跑 · 楼梯间在北走廊两端 · 版本 11/16夜·看台版</div></div>
+<div id="crosshair"></div><div id="prompt">按 E 开门</div><canvas id="minimap" width="196" height="196"></canvas><div id="hotbar"></div><div id="dialog"><img id="dialogPortrait" alt=""><span id="dialogName">严老师</span><span id="dialogText"></span><div id="chatBox" style="display:none"><div id="chatMeta"></div><input id="chatInput" type="text" maxlength="120" placeholder="输入你想说的话…"><button id="chatSend" type="button">发送</button><span id="chatHint">Esc 关闭</span></div></div>
 <div id="toast"></div><div id="summary"></div><div id="fade"></div>
 <div id="basketballOverlay"><button id="basketballClose" type="button">✕ 关闭</button><iframe title="篮球小游戏" src="about:blank"></iframe></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
@@ -86,10 +91,14 @@
   const DOOR_WIDTH = 2.6;
   const FLOOR_H = 3.6;
   let playerGroundY = 0;
+  const jumpSurfaces = [];
+  function jumpSurface(x0, x1, z0, z1, h) { jumpSurfaces.push({ x0, x1, z0, z1, h }); }
   function surfaceHeightsAt(x,z) {
     const inRect=(x0,x1,z0,z1)=>x>=x0&&x<=x1&&z>=z0&&z<=z1;
     const hs=[];
     if(inRect(-10,10,-23,-11.2)||inRect(-5.9,.6,-11.2,6.8)||inRect(6.2,10,1.8,6.8)||inRect(-10,-5.9,1.8,6.8)||inRect(.6,6.2,-11.2,6.8))hs.push(FLOOR_H);
+    if(inRect(8.2,10,6.8,9)||inRect(-10,-8.2,6.8,9))hs.push(FLOOR_H);
+    if(inRect(8.2,10,9,19.8)||inRect(-10,-8.2,9,19.8))hs.push(3.6*(19.8-z)/10.8);
     if(inRect(.8,6,-8.875,-7.525))hs.push(3.9); if(inRect(.8,6,-6.575,-5.225))hs.push(4.18); if(inRect(.8,6,-4.275,-2.925))hs.push(4.46);
     if(inRect(-10,-5.9,-11.2,-9))hs.push(FLOOR_H);
     if(inRect(6.2,10,-11.2,-9))hs.push(FLOOR_H);
@@ -99,6 +108,7 @@
     if(inRect(8.25,9.95,-10.6,-5.2))hs.push(1.8*(z+10.6)/5.4);
     if(inRect(6.3,9.95,-5.2,-3.6))hs.push(1.8);
     if(inRect(6.3,8.05,-9,-3.6))hs.push(1.8+1.8*(-3.6-z)/5.4);
+    for (const s of jumpSurfaces) if (x >= s.x0 && x <= s.x1 && z >= s.z0 && z <= s.z1) hs.push(s.h);
     return hs;
   }
   function groundHeightAt(x,z,curY) { const hs=surfaceHeightsAt(x,z); if(!hs.length)return 0; let best=null; for(const h of hs)if(h<=curY+.65&&(best===null||h>best))best=h; return best===null?curY:best; }
@@ -210,7 +220,7 @@
   }
   // 教学楼重建：墙体视觉与分层碰撞分开登记。
   const B1={y0:-.6,y1:1.9}, B2={y0:1.7,y1:5.6};
-  const HOOP_POS = { x:-48.6, z:79 }, HOOP_TRIGGER_RADIUS = 2.6;
+  const HOOP_POS = { x:-46.1, z:34.5 }, HOOP_TRIGGER_RADIUS = 2.6;
   function wall(name,x,y,z,sx,sy,sz,floor=0,color=0xf0c987){box(name,x,y,z,sx,sy,sz,color);addColliderBounds(x-sx/2,x+sx/2,z-sz/2,z+sz/2,...(floor? [B2.y0,B2.y1]:[B1.y0,B1.y1]));}
   function makeDoor(label,z,hingeX,direction,axis='z',y=0){const pivot=new THREE.Group();const plane=z,hinge=hingeX;if(axis==='x')pivot.position.set(plane,y,hinge);else pivot.position.set(hingeX,y,z);scene.add(pivot);const width=DOOR_WIDTH;const leaf=new THREE.Mesh(axis==='x'?new THREE.BoxGeometry(.18,2.95,width):new THREE.BoxGeometry(width,2.95,.18),texMat('real-door',1,1)); leaf.name='person door leaf';if(axis==='x')leaf.position.set(0,1.475,direction*width/2);else leaf.position.set(direction*width/2,1.475,0);pivot.add(leaf);const handle=new THREE.Mesh(new THREE.SphereGeometry(.075,12,8),mat(0xf5d66f));if(axis==='x')handle.position.set(direction*.12,1.45,direction*(width-.22));else handle.position.set(direction*(width-.22),1.45,direction>0?.12:-.12);pivot.add(handle);const door={label,pivot,floorY:y,z:axis==='x'?hinge: z,hingeX:axis==='x'?plane:hingeX,direction,open:false,passable:false,width,cachedBounds:null,axis,plane,hinge};door.cx=axis==='x'?plane:hinge+direction*width/2;door.cz=axis==='x'?hinge+direction*width/2:plane;door.collider={door};colliders.push(door.collider);return door;}
   function makeSign(text,w,h,bg,fg){const canvas=document.createElement('canvas');canvas.width=512;canvas.height=Math.round(512*h/w);const ctx=canvas.getContext('2d');ctx.fillStyle=bg;ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle=fg;ctx.font=`bold ${Math.round(canvas.height*.58)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,canvas.width/2,canvas.height/2);const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;const mesh=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:texture,side:THREE.DoubleSide}));mesh.name=`sign ${text}`;return mesh;}
@@ -279,8 +289,8 @@
   wallDoorZ('2F D north wall',-5.9,.6,-11.2,-2.6,3.6);roomDoor('普通教室D门（2F）',-11.2,-2.6,3.6,-1);
   wallDoorZ('2F multimedia north wall',.6,6.2,-11.2,3.4,3.6);roomDoor('多媒体教室门（2F）',-11.2,3.4,3.6,-1);
   wall('2F D west',-5.9,5.4,-4.3,.22,3.6,13.8,3.6);wall('2F D west south',-5.9,5.4,5.7,.22,3.6,2.2,3.6);wall('2F D/multimedia partition',.6,5.4,-2.2,.22,3.6,18,3.6);wall('2F multimedia east',6.2,5.4,-4.3,.22,3.6,13.8,3.6);wall('2F multimedia east south',6.2,5.4,5.7,.22,3.6,2.2,3.6);
-  wall('2F D wing south',-7.95,5.4,6.8,4.1,3.6,.28,3.6);wall('2F D wing west',-10,5.4,4.3,.22,3.6,5,3.6);wall('2F D wing partition',-5.9,5.4,2.2,.22,3.6,.8,3.6);wall('2F D wing partition south',-5.9,5.4,5.7,.22,3.6,2.2,3.6);
-  wall('2F multimedia wing south',8.1,5.4,6.8,3.8,3.6,.28,3.6);wall('2F multimedia wing east',10,5.4,4.3,.22,3.6,5,3.6);wall('2F multimedia wing partition',6.2,5.4,2.2,.22,3.6,.8,3.6);wall('2F multimedia wing partition south',6.2,5.4,5.7,.22,3.6,2.2,3.6);
+  wall('2F D wing south',-6.65,5.4,6.8,1.5,3.6,.28,3.6); roomDoor('二楼西翼门',6.8,-8.7,3.6,-1);wall('2F D wing west',-10,5.4,4.3,.22,3.6,5,3.6);wall('2F D wing partition',-5.9,5.4,2.2,.22,3.6,.8,3.6);wall('2F D wing partition south',-5.9,5.4,5.7,.22,3.6,2.2,3.6);
+  wall('2F multimedia wing south',6.8,5.4,6.8,1.2,3.6,.28,3.6); roomDoor('二楼东翼门',6.8,8.7,3.6,-1);wall('2F multimedia wing east',10,5.4,4.3,.22,3.6,5,3.6);wall('2F multimedia wing partition',6.2,5.4,2.2,.22,3.6,.8,3.6);wall('2F multimedia wing partition south',6.2,5.4,5.7,.22,3.6,2.2,3.6);
   // Stair body seals: block ground-level entry into the solid stair masses (legit crossings happen above these bands).
   addColliderBounds(-9.9,-6.1,-3.72,-3.48,-.6,1.7); addColliderBounds(-9.9,-8.1,-5.32,-5.08,-.6,1.55);
   addColliderBounds(6.3,9.95,-3.72,-3.48,-.6,1.7); addColliderBounds(8.25,9.95,-5.32,-5.08,-.6,1.55);
@@ -381,7 +391,7 @@ function deskSetPro(x,z){
   // 2F blackboard and three tier media seating.
   box('D blackboard',-2.65,6.85,-10.94,4.5,1.7,.14,0x176d4b);for(let row=0;row<4;row++)for(let col=0;col<2;col++)deskSet(-4.1+col*2.2,-7.3+row*3.1,3.6,B2,'D desk');
   box('multimedia screen',3.4,6.65,-10.98,4.2,2.1,.12,0x222d3d);for(let tier=0;tier<3;tier++){const tz=-8.2+tier*2.3;box('media tier',3.4,3.75+tier*.28,tz,5.2,.3,1.35,0x9b9589);for(let col=0;col<4;col++){const x=1.25+col*1.43,z=-8.35+tier*2.3;box('media seat',x,4.18+tier*.28,z,.9,.34,.55,0x4d6a88);}}
-  for(let i=0;i<5;i++){const x=-9.55+i*.72;box('D wing bookshelf',x,5.15,5.9,.62,2.9,.45,0x8a6a48);addColliderBounds(x-.34,x+.34,5.65,6.15,B2.y0,B2.y1);}for(let i=0;i<18;i++)box('D bookshelf book',-9.55+(i%5)*.72,4.1+Math.floor(i/5)*.58,5.62,.4,.42,.16,[0x3f6fb5,0xc0533f,0x7a9e7e,0xd9a441][i%4]);
+  for(let i=0;i<5;i++){const z=2.5+i*.72;box('D wing bookshelf',-9.65,5.15,z,.45,2.9,.62,0x8a6a48);addColliderBounds(-9.99,-9.31,z-.34,z+.34,B2.y0,B2.y1);}for(let i=0;i<18;i++)box('D bookshelf book',-9.38,4.1+Math.floor(i/5)*.58,2.5+(i%5)*.72,.16,.42,.4,[0x3f6fb5,0xc0533f,0x7a9e7e,0xd9a441][i%4]);
   // North room interiors: workstation, meeting room, restrooms and hallway utility details.
   function officeDeskPro(x,z){
     proBox('pro office desk',x,.78,z,1.7,.07,.8,texMat('real-deskwood',1,1));proBox('pro office cabinet',x-.6,.36,z,.45,.68,.7,texMat('real-deskwood',1,1,0xa8895e));
@@ -403,10 +413,20 @@ function deskSetPro(x,z){
   box('ceiling',0,7,15,20,.25,16.2,0xf7f1dc);box('lobby light strip',0,5.55,15,12,.08,14,0xffe9b8);
   for(const z of [9,15,21]){const lamp=new THREE.Mesh(new THREE.SphereGeometry(.22),new THREE.MeshLambertMaterial({color:0xfff3cf,emissive:0xffca7a,emissiveIntensity:.95}));lamp.position.set(0,5.5,z);scene.add(lamp);}
   box('lobby notice board',9.8,2,13.5,.08,2,4,0x37474f);for(let i=0;i<4;i++)box('lobby poster',9.72,1.5+(i%2)*.9,12.6+Math.floor(i/2)*1.8,.04,.65,.85,[0xe8833a,0x4d9ab0,0xd94f4f,0x7a9e7e][i]);box('lobby culture board',-9.8,2,16,.08,2,4,0x5a4632);for(let i=0;i<4;i++)box('lobby poster',-9.72,1.5+(i%2)*.9,15.1+Math.floor(i/2)*1.8,.04,.65,.85,[0x9a6fc0,0xd9a441,0x3f6fb5,0xc0533f][i]);
-  for(const [x,z] of [[8.2,16],[-8.2,17]]){box('lobby bench seat',x,.55,z,.55,.12,2.2,0x9a6a42);box('lobby bench back',x+(x>0?.32:-.32),.88,z,.1,.5,2.2,0x9a6a42);addColliderBounds(x-.4,x+.4,z-1.1,z+1.1,B1.y0,B1.y1);}
+  for(const [x,z] of [[5.6,15.5],[-5.6,15.5]]){box('lobby bench seat',x,.55,z,.55,.12,2.2,0x9a6a42);box('lobby bench back',x+(x>0?.32:-.32),.88,z,.1,.5,2.2,0x9a6a42);addColliderBounds(x-.4,x+.4,z-1.1,z+1.1,-.6,.6);jumpSurface(x-.28,x+.28,z-1.1,z+1.1,.61);}
   for(const [x,z] of [[-9,10],[9,10],[-9,21],[9,21]]){box('lobby planter',x,.25,z,.7,.5,.7,0x6d4c33);addColliderBounds(x-.4,x+.4,z-.4,z+.4,B1.y0,B1.y1);const shrub=new THREE.Mesh(new THREE.SphereGeometry(.5),mat(0x4e8f3f));shrub.position.set(x,.95,z);scene.add(shrub);}
   sunPatch(0,20.2,3.2,4.2,0,.3);sunPatch(3.4,19.2,2.6,3.6,0,.3);
   addSign('教学楼大厅',3.4,.8,'#3d5a73','#ffffff',0,4.35,22.78,Math.PI);addSign('楼层导览 · 1F 大厅 / 2F 教室',3,.65,'#3d5a73','#ffffff',9.72,2.6,19.6,-Math.PI/2);
+  // 大厅两侧直跑楼梯：沿东西墙直上二楼回廊，与二层两翼相连。
+  for (const sgn of [1,-1]) {
+    const cx=sgn*9.1;
+    for (let i=0;i<20;i++){ const h=.18*(i+1); box('lobby stair step',cx,h/2,19.8-.54*i-.27,1.8,h,.54,0xb9b3a8); }
+    box('lobby mezzanine slab',cx,3.47,7.9,1.8,.26,2.2,0xcac2b2);
+    const rail=box('lobby stair rail',sgn*8.26,2.8,14.4,.07,.07,11.4,0x8a94a0); rail.rotation.x=Math.atan2(3.6,10.8);
+    box('lobby mezzanine rail',sgn*8.26,4.55,7.9,.07,.07,2.2,0x8a94a0);
+    addColliderBounds(sgn>0?8.02:-8.38,sgn>0?8.38:-8.02,6.8,9,3.0,5.6);
+    addSign('楼梯',1.6,.48,'#3d5a73','#ffffff',sgn*9.8,2.6,21.5,-sgn*Math.PI/2);
+  }
   // 校园外围、教学楼立面与远景。
   box('campus grass floor', 5, -.3, 72.5, 200, .24, 105, 0x77b25a);
   for (const [name, x, z, sx, sz] of [['campus wall south west', -60.5, 23, 69, .4], ['campus wall south east', 65.5, 23, 79, .4], ['campus wall west', -95, 74, .4, 102], ['campus wall north west', -51, 125, 88, .4], ['campus wall north east', 56, 125, 98, .4], ['campus wall east', 105, 74, .4, 102]]) box(name, x, 1.1, z, sx, 2.2, sz, 0xa8a29a, true);
@@ -430,7 +450,7 @@ function deskSetPro(x,z){
   const flagPole = new THREE.Mesh(new THREE.CylinderGeometry(.07,.09,10,12), mat(0xd8d8d8)); flagPole.name='flag pole'; flagPole.position.set(0,5.2,44); scene.add(flagPole); colliders.push({bounds:{minX:-.45,maxX:.45,minZ:43.55,maxZ:44.45}});
   box('campus flag', 1.15, 9.3, 44, 2.2, 1.3, .05, 0xd23b2e);
   for (const [x,z] of [[-9.5,33],[9.5,33],[-9.5,51],[9.5,51]]) { box('flower bed border',x,.15,z,6,.3,3,0x6d4c33,true); for (let i=0;i<6;i++) box('flower bed flowers',x-2.375+i*.95,.31,z,.95,.1,2.6,[0xe8833a,0xd94f4f,0xffd76a,0x9a6fc0,0xd94f4f,0xe8833a][i]); }
-  for (const [x,z] of [[-5.8,30],[5.8,30],[-5.8,54],[5.8,54]]) { box('bench seat',x,.55,z,2.2,.12,.55,0x9a6a42); box('bench back',x,.88,z+(z<42?-.27:.27),2.2,.5,.1,0x9a6a42); for(const dx of [-.8,.8]) box('bench leg',x+dx,.27,z,.12,.55,.12,0x59636b); colliders.push({bounds:{minX:x-1.1,maxX:x+1.1,minZ:z-.35,maxZ:z+.35}}); }
+  for (const [x,z] of [[-5.8,30],[5.8,30],[-5.8,54],[5.8,54]]) { box('bench seat',x,.55,z,2.2,.12,.55,0x9a6a42); box('bench back',x,.88,z+(z<42?-.27:.27),2.2,.5,.1,0x9a6a42); for(const dx of [-.8,.8]) box('bench leg',x+dx,.27,z,.12,.55,.12,0x59636b); colliders.push({bounds:{minX:x-1.1,maxX:x+1.1,minZ:z-.35,maxZ:z+.35},y0:-.6,y1:.6}); jumpSurface(x-1.1,x+1.1,z-.28,z+.28,.61); }
   const lampMat = new THREE.MeshLambertMaterial({color:0xffe9a8,emissive:0xffca55,emissiveIntensity:.9});
   for (const [x,z] of [[-16.5,28],[16.5,28],[-16.5,44],[16.5,44],[-16.5,56],[16.5,56]]) { const pole=new THREE.Mesh(new THREE.CylinderGeometry(.06,.08,3.6,10),mat(0x3f4a52));pole.name='plaza lamp post';pole.position.set(x,1.8,z);scene.add(pole);const head=new THREE.Mesh(new THREE.SphereGeometry(.22,12,8),lampMat);head.name='plaza lamp head';head.position.set(x,3.7,z);scene.add(head);colliders.push({bounds:{minX:x-.3,maxX:x+.3,minZ:z-.3,maxZ:z+.3}}); }
   for (const x of [-4.6,4.6]) { const bin=new THREE.Mesh(new THREE.CylinderGeometry(.26,.24,.68,12),mat(0x3e7d4e));bin.name='campus trash bin';bin.position.set(x,.34,30);scene.add(bin);colliders.push({bounds:{minX:x-.3,maxX:x+.3,minZ:29.7,maxZ:30.3}}); }
@@ -553,6 +573,7 @@ function deskSetPro(x,z){
   for(const dx of [-1.15,1.15]) for(const dz of [-1.15,1.15]) { const p=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,2.4),mat(0xb9b3a8));p.position.set(-39.5+dx,1.2,100.6+dz);scene.add(p);colliders.push({bounds:{minX:-39.5+dx-.15,maxX:-39.5+dx+.15,minZ:100.6+dz-.15,maxZ:100.6+dz+.15}}); }
   const gazeboRoof=new THREE.Mesh(new THREE.CylinderGeometry(.15,2.5,1.15,4),mat(0x8e4a32));gazeboRoof.position.set(-39.5,3,100.6);gazeboRoof.rotation.y=Math.PI/4;scene.add(gazeboRoof);
   box('gazebo bench',-39.5,.23,99.7,1.9,.45,.42,0x8a6a48,true);
+  for(const c of colliders)if(c.mesh&&c.mesh.name==='gazebo bench'){c.y0=-.6;c.y1=.44;} jumpSurface(-40.45,-38.55,99.49,99.91,.455);
   box('lake south path floor',-50,-.25,101.5,25,.25,3,0xe6dcc2); box('lake west path floor',-64,-.25,112,3,.25,19,0xe6dcc2);
   tree(-67,108); tree(-44,122.5); tree(76,90); tree(92,90); tree(36,97); tree(66,97); tree(92,97); tree(-8,90); tree(-30,90); tree(-64,28); tree(-64,40);
 
@@ -567,13 +588,42 @@ function deskSetPro(x,z){
   const centerRing=new THREE.Mesh(new THREE.RingGeometry(3.9,4.1,32),mat(0xf5f2e8));centerRing.name='football center ring';centerRing.rotation.x=-Math.PI/2;centerRing.position.set(-(55),-.12,(49)+21);scene.add(centerRing);
   for (const x of [44,66]) { fieldBox('football box line',x,-.141,49,.09,.012,12,0xf5f2e8); for(const z of [43,55]) fieldBox('football box line',x+(x===44?4:-4),-.141,z,8,.012,.09,0xf5f2e8); fieldBox('football box end line',x+(x===44?8:-8),-.141,49,.09,.012,12,0xf5f2e8); }
   for (const [x,dir] of [[43.5,1],[66.5,-1]]) { for(const z of [47.2,50.8]) { const post=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,2.2,10),mat(0xffffff));post.name='football goal post';post.position.set(-(x),1.1,(z)+21);scene.add(post);colliders.push({bounds:{minX:-x-.15,maxX:-x+.15,minZ:z+21-.15,maxZ:z+21+.15}}); } fieldBox('football goal crossbar',x,2.2,49,.08,.08,3.7,0xffffff); const net=new THREE.Mesh(new THREE.BoxGeometry(.04,1.8,3.4),new THREE.MeshLambertMaterial({color:0xbfc7ca,transparent:true,opacity:.35}));net.name='football goal net';net.position.set(-(x+dir*.9),.9,(49)+21);scene.add(net); }
-  fieldBox('court floor',55,-.235,58,15,.25,11,0x3f7f8c);
-  for(const [x,z,sx,sz] of [[55,52.5,15,.09],[55,63.5,15,.09],[47.5,58,.09,11],[62.5,58,.09,11]]) fieldBox('court line',x,-.104,z,sx,.012,sz,0xf5f2e8);
-  fieldBox('court center line',55,-.104,58,.09,.012,11,0xf5f2e8);
-  fieldBox('court hoop pole',48.6,2.15,58,.22,4.3,.22,0x59636b,true); fieldBox('court hoop backboard',48.05,3.65,58,.16,1.25,2.2,0xf5f1df,true); fieldBox('court hoop rim',47.65,3.08,58,.16,.12,1.05,0xd7472f,true);
-  for(let i=0;i<4;i++){const x=89.75+i*1.5,h=.55*(i+1);fieldBox('grandstand step',x,h/2-.15,49,1.5,h,22,0xcac2b2);fieldBox('grandstand seat stripe',x,h-.12,49,1.1,.06,22,0x4d7ab0);colliders.push({bounds:{minX:-x-.75,maxX:-x+.75,minZ:59,maxZ:81}});} fieldBox('grandstand rear wall',95.4,1.6,49,.35,3.5,22.5,0xb9b3a8,true);
-  for (const [name,x,z,sx,sz] of [['east hedge south',22,35.25,.35,20.5],['east hedge north',22,62.75,.35,20.5],['east hedge west',55,25,66,.35],['east hedge east',88,49,.35,48],['east hedge north edge west',37,73,24,.35],['east hedge north edge middle',67.5,73,17,.35],['east hedge north edge east',91.5,73,13,.35]]) fieldBox(name,x,.45,z,sx,.9,sz,0x3d7040,true);
+  fieldBox('football pitch turf',55,-.27,49,34,.25,26,0x5f9e4a);
+  // 篮球场（操场北侧空地，独立场地，不再压在足球场中央）
+  box('court floor',-52.5,-.235,34.5,15,.25,11,0x3f7f8c);
+  for(const [x,z,sx,sz] of [[-52.5,29.05,15,.09],[-52.5,39.95,15,.09],[-59.95,34.5,.09,11],[-45.05,34.5,.09,11]]) box('court line',x,-.104,z,sx,.012,sz,0xf5f2e8);
+  box('court center line',-52.5,-.104,34.5,.09,.012,11,0xf5f2e8);
+  const courtRing=new THREE.Mesh(new THREE.RingGeometry(1.7,1.85,24),mat(0xf5f2e8)); courtRing.name='court center ring'; courtRing.rotation.x=-Math.PI/2; courtRing.position.set(-52.5,-.1,34.5); scene.add(courtRing);
+  box('court hoop pole',-46.1,2.15,34.5,.22,4.3,.22,0x59636b,true); box('court hoop backboard',-45.55,3.65,34.5,.16,1.25,2.2,0xf5f1df,true); box('court hoop rim',-45.15,3.08,34.5,.16,.12,1.05,0xd7472f,true);
+  const courtSign=makeSign('篮球场',2.2,.7,'#3d5a73','#ffffff'); courtSign.position.set(-45.35,2.55,34.5); courtSign.rotation.y=-Math.PI/2; scene.add(courtSign);
+  // 看台（操场西侧）：36 米超长看台，五级台阶可直接走上去；中段塔楼底层是仓库间，顶层是主席台，后侧楼梯直达台顶，顶部有遮雨棚。
+  for (let i=0;i<5;i++) { const x1=-89-1.3*i, x0=x1-1.3, top=.5*(i+1), cx=(x0+x1)/2;
+    if (i<3) { box('grandstand step',cx,top/2,70,1.3,top,36,0xcac2b2); box('grandstand seat stripe',cx,top-.03,70,1.0,.06,36,0x4d7ab0); }
+    else { box('grandstand step',cx,top/2,82,1.3,top,12,0xcac2b2); box('grandstand step',cx,top/2,70,1.3,top,12,0xcac2b2); box('grandstand slab',cx,top-.15,58,1.3,.3,12,0xcac2b2); box('grandstand seat stripe',cx,top-.03,70,1.0,.06,36,0x4d7ab0); }
+    jumpSurface(x0,x1,52,88,top);
+  }
+  // 仓库间（看台下层北段，北端留门洞进入）
+  box('storage north wall',-93.4,.85,52,1.0,1.7,.3,0xb9b3a8,true); box('storage east wall',-92.9,.85,58,.3,1.7,12,0xb9b3a8,true);
+  box('storage shelf',-94.85,.9,58,.6,1.8,3,0x7a8894,true); box('storage crate',-93.6,.35,61.5,.9,.7,.9,0xb08954,true); box('storage crate top',-93.6,1.05,61.5,.75,.7,.75,0xa3805e,true);
+  const storageBall=new THREE.Mesh(new THREE.SphereGeometry(.33,14,10),mat(0xd97b29)); storageBall.name='storage ball'; storageBall.position.set(-94.3,.33,54.5); scene.add(storageBall); colliders.push({bounds:{minX:-94.63,maxX:-93.97,minZ:54.17,maxZ:54.83},y0:-.6,y1:.7});
+  const storageLight=new THREE.PointLight(0xffe6bb,10,9); storageLight.position.set(-94.2,1.9,58); scene.add(storageLight);
+  for(const c of colliders)if(c.mesh&&['storage shelf','storage crate','storage crate top'].indexOf(c.mesh.name)>=0){c.y0=-.6;c.y1=1.8;}
+  for(const c of colliders)if(c.mesh&&['storage north wall','storage east wall'].indexOf(c.mesh.name)>=0){c.y0=-.6;c.y1=1.75;}
+  for(const c of colliders)if(c.mesh&&['court hoop backboard','court hoop rim'].indexOf(c.mesh.name)>=0){c.y0=2.8;c.y1=4.4;}
+  // 主席台（看台中段顶部平台，踩着台阶就能上去）
+  box('rostrum platform',-94.2,2.87,70,2.6,.26,12,0x9aa3ab); box('rostrum support',-94.85,2.62,70,.9,.24,12,0xb9b3a8); box('rostrum support leg',-93.55,2.37,70,.9,.74,12,0xb9b3a8); jumpSurface(-95.5,-92.9,64,76,3.0);
+  for (let j=0;j<6;j++){ const top=.5*(j+1), z0=48.4+.6*j; box('stand rear stair',-93.55,top/2,z0+.3,1.3,top,.6,0xb9b3a8); jumpSurface(-94.2,-92.9,z0,z0+.6,top); }
+  box('rostrum desk',-93.6,3.35,70,.8,.7,2.6,0x8a6a48,true); box('rostrum rail north',-94.2,3.55,75.9,2.5,.07,.07,0x8a94a0); box('rostrum rail west',-95.4,3.55,70,.07,.07,11.6,0x8a94a0);
+  addColliderBounds(-95.5,-95.3,51.8,52.2,-.6,.4); addColliderBounds(-93.9,-89,51.8,52.2,-.6,.4); addColliderBounds(-95.5,-89,87.8,88.2,-.6,.4); addColliderBounds(-95.5,-92.9,63.8,64.2,-.6,.4); for(const c of colliders)if(c.mesh&&c.mesh.name==='rostrum desk'){c.y0=2.9;c.y1=3.8;}
+  for (const z of [59,81]) box('canopy post back',-95.3,3.5,z,.14,2,.14,0x6e7a84,true);
+  box('canopy post back',-95.3,3.75,70,.14,1.5,.14,0x6e7a84,true);
+  for (const z of [59,70,81]) box('canopy post front',-90.95,2.65,z,.14,3.3,.14,0x6e7a84,true);
+  const canopy=box('stand canopy',-93.2,4.42,70,5.2,.12,25,0x4d7ab0); canopy.rotation.z=-.08;
+  addSign('主席台',2.4,.65,'#8a2f23','#ffffff',-90.5,3.95,70,Math.PI/2);
+  for (const [name,x,z,sx,sz] of [['east hedge south',22,35.25,.35,20.5],['east hedge north',22,62.75,.35,20.5],['east hedge west',55,25,66,.35],['east hedge east',88,36,.35,22],['east hedge east',88,62,.35,22],['east hedge north edge west',37,73,24,.35],['east hedge north edge middle',67.5,73,17,.35],['east hedge north edge east',91.5,73,13,.35]]) fieldBox(name,x,.45,z,sx,.9,sz,0x3d7040,true);
   fieldBox('east path floor',20,-.25,49,4,.25,7,0xe6dcc2);
+  for(const c of colliders)if(c.mesh&&c.mesh.name&&c.mesh.name.indexOf('east hedge')===0){c.y0=-.6;c.y1=.89;}
+  jumpSurface(-22.18,-21.82,46,66.5,.9); jumpSurface(-22.18,-21.82,73.5,94,.9); jumpSurface(-88,-22,45.82,46.18,.9); jumpSurface(-88.18,-87.82,46,68,.9); jumpSurface(-88.18,-87.82,72,94,.9); jumpSurface(-49,-25,93.82,94.18,.9); jumpSurface(-76,-59,93.82,94.18,.9); jumpSurface(-98,-85,93.82,94.18,.9);
   fieldBox('east field sign post',22.8,1.1,44.6,.12,2.2,.12,0x6e6a61,true); fieldSign('操场',2.2,.8,'#3d5a73','#ffffff',22.8,2.2,44.6,-Math.PI/2);
   fieldBox('plaza east sign post',17.2,1.1,49,.12,2.2,.12,0x6e6a61,true); fieldSign('← 操场 · 实验楼',2,.7,'#2e5e4e','#ffffff',17.2,2,49.1); fieldSign('← 操场 · 实验楼',2,.7,'#2e5e4e','#ffffff',17.2,2,48.9,Math.PI);
   for(const [z,label] of [[37.5,'食堂 · 图书馆 →'],[55,'宿舍 · 校医院 →']]) { fieldBox('plaza west sign post',-17.2,1.1,z,.12,2.2,.12,0x6e6a61,true); fieldSign(label,2,.7,'#2e5e4e','#ffffff',-17.2,2,z+.1); fieldSign(label,2,.7,'#2e5e4e','#ffffff',-17.2,2,z-.1,Math.PI); }
@@ -703,7 +753,7 @@ function deskSetPro(x,z){
 
   // 校园超市（北侧新址）
   const mw=0x9aa3ab;
-  box('market west wall south',52,2.75,72.5,.35,5.5,5,mw,true); box('market west wall north',52,2.75,81.5,.35,5.5,5,mw,true); box('market window lintel',52,4.2,77,.35,2.6,6,mw);
+  box('market west wall south',52,2.75,72.85,.35,5.5,5.7,mw,true); box('market west wall north',52,2.75,81.15,.35,5.5,5.7,mw,true); box('market window lintel',52,4.2,77,.35,2.6,6,mw);
   box('market east wall',68,2.75,77,.35,5.5,14,mw,true); box('market north wall',60,2.75,70,16,5.5,.35,mw,true); box('market south wall',60,2.75,84,16,5.5,.35,mw,true); box('market ceiling',60,5.6,77,16.5,.25,14.5,0x87909a);
   const shopGlass=new THREE.MeshLambertMaterial({color:0xa8c8dd,transparent:true,opacity:.55});
   for(const z of [73.8,80.2]) { const g=new THREE.Mesh(new THREE.BoxGeometry(.08,2.6,2.2),shopGlass); g.name='market glass'; g.position.set(51.78,1.7,z); scene.add(g); }
@@ -712,14 +762,14 @@ function deskSetPro(x,z){
   for(let i=0;i<3;i++) { const x=[56,60,64][i]; box('market shelf',x,.85,77,.8,1.7,9,0x8a939c,true); for(const y of [.55,1.05,1.55]) box('market merchandise',x,y,77,.86,.34,8.6,[0xd95f29,0x53a06a,0x3f6fb5][i]); const tag=makeSign(['零食','饮料','日用品'][i],1,.5,'#37474f','#ffecb3'); tag.position.set(x,2,72.2); tag.rotation.y=Math.PI; scene.add(tag); }
   box('market checkout',54.5,.5,81.5,.8,1,2.6,0x5b7a99,true); box('market cooler',67.4,1,77,.7,2,6,0xbcd2e2,true); interiorLight(0xffffff,24,28,60,3.4,77);
 
-  // 快递驿站（东侧新址）
+  // 快递驿站（服务楼南侧空地，与宿舍楼拉开距离）
   const qw=0xdfe7ee;
-  box('courier west wall south',82,2.25,91.35,.35,4.5,6.7,qw,true); box('courier west wall north',82,2.25,98.65,.35,4.5,2.7,qw,true); box('courier entrance lintel',82,3.6,96,.35,1.8,2.6,qw);
-  box('courier east wall',96,2.25,94,.35,4.5,12,qw,true); box('courier north wall',89,2.25,88,14,4.5,.35,qw,true); box('courier south wall',89,2.25,100,14,4.5,.35,qw,true); box('courier ceiling',89,4.6,94,14.5,.25,12.5,0xc4d2de); box('courier blue band',89,3.1,94,14.3,.6,12.3,0x2e7cd6);
-  doors.push(makeDoor('驿站门',82,94.7,1,'x')); const courierSign=makeSign('快递驿站',3.6,.95,'#1453a8','#ffffff'); courierSign.position.set(81.3,4,96); courierSign.rotation.y=-Math.PI/2; scene.add(courierSign);
-  box('courier path floor',78,-.25,96,8,.25,3,0xe6dcc2); box('courier interior floor',89,-.24,94,13,.25,11,0xd3dbe2);
-  for(const x of [85,89.5,94]) { box('courier parcel shelf',x,.95,92,.7,1.9,4.2,0x7a8894,true); for(let row=0;row<3;row++) for(let side of [-1,1]) box('courier parcel',x+side*.36,.5+row*.58,91.1+(row%2)*1.2,.6,.38,.8,(row+side>1)?0xd97b29:0xb08954); }
-  box('courier pickup counter',84,.5,96,.8,1,4.4,0x2e7cd6,true); box('courier packing table',93,.45,98.5,3,.9,.7,0x8a939c,true); interiorLight(0xf4f9ff,18,22,89,3,94);
+  box('courier west wall south',30,2.25,85.35,.35,4.5,6.7,qw,true); box('courier west wall north',30,2.25,92.65,.35,4.5,2.7,qw,true); box('courier entrance lintel',30,3.6,90,.35,1.8,2.6,qw);
+  box('courier east wall',44,2.25,88,.35,4.5,12,qw,true); box('courier north wall',37,2.25,82,14,4.5,.35,qw,true); box('courier south wall',37,2.25,94,14,4.5,.35,qw,true); box('courier ceiling',37,4.6,88,14.5,.25,12.5,0xc4d2de); box('courier blue band',37,3.1,88,14.3,.6,12.3,0x2e7cd6);
+  doors.push(makeDoor('驿站门',30,88.7,1,'x')); const courierSign=makeSign('快递驿站',3.6,.95,'#1453a8','#ffffff'); courierSign.position.set(29.3,4,90); courierSign.rotation.y=-Math.PI/2; scene.add(courierSign);
+  box('courier path floor',26,-.25,90,8,.25,3,0xe6dcc2); box('courier interior floor',37,-.24,88,13,.25,11,0xd3dbe2);
+  for(const x of [33,37.5,42]) { box('courier parcel shelf',x,.95,86,.7,1.9,4.2,0x7a8894,true); for(let row=0;row<3;row++) for(let side of [-1,1]) box('courier parcel',x+side*.36,.5+row*.58,85.1+(row%2)*1.2,.6,.38,.8,(row+side>1)?0xd97b29:0xb08954); }
+  box('courier pickup counter',32,.5,90,.8,1,4.4,0x2e7cd6,true); box('courier packing table',41,.45,92.5,3,.9,.7,0x8a939c,true); interiorLight(0xf4f9ff,18,22,37,3,88);
 
   // 南侧七间校园便民店及 ATM
   const serviceNames=['浴室','开水房','打印文具','理发店','药店','书店','咖啡吧'];
@@ -763,18 +813,18 @@ function deskSetPro(x,z){
 
   // 南校门、校外道路与公交站。
   box('south gate pillar west',-6.8,2.75,125,1.1,5.5,1.1,0x8a8378,true); box('south gate pillar east',6.8,2.75,125,1.1,5.5,1.1,0x8a8378,true);
-  box('south gate beam',0,5.6,125,14.6,1,1.3,0x6e685e); const southGateSign=makeSign('青岛城市学院',5.5,1,'#37424e','#f5d98a'); southGateSign.position.set(0,5.6,124.28); southGateSign.rotation.y=Math.PI; scene.add(southGateSign);
+  box('south gate beam',0,5.6,125,14.6,1,1.3,0x6e685e); const southGateSign=makeSign('×××',5.5,1,'#37424e','#f5d98a'); southGateSign.position.set(0,5.6,124.28); southGateSign.rotation.y=Math.PI; scene.add(southGateSign);
   colliders.push({ bounds:{ minX:-6.3, maxX:6.3, minZ:124.75, maxZ:125.25 } });
   const GATE_POS = { x:0, z:125 };
   const gateMarker = new THREE.Group(); gateMarker.position.set(0,0,125); scene.add(gateMarker);
   const gateBeamMat = new THREE.MeshBasicMaterial({ color:0xffd76a, transparent:true, opacity:.35, side:THREE.DoubleSide, depthWrite:false, fog:false });
   const gateBeam = new THREE.Mesh(new THREE.CylinderGeometry(1.5,1.5,13,20,1,true), gateBeamMat); gateBeam.position.y=6.5; gateBeam.name='gate beam'; gateMarker.add(gateBeam); gateMarker.visible=false;
-  box('campus name stone',-12.5,.85,120.5,5,1.7,1.1,0x9a958a,true); const campusNameStoneSign=makeSign('青岛城市学院',4.4,1.1,'#5a5348','#ffd98a'); campusNameStoneSign.position.set(-12.5,.95,119.9); campusNameStoneSign.rotation.y=Math.PI; scene.add(campusNameStoneSign);
+  box('campus name stone',-12.5,.85,120.5,5,1.7,1.1,0x9a958a,true); const campusNameStoneSign=makeSign('×××',4.4,1.1,'#5a5348','#ffd98a'); campusNameStoneSign.position.set(-12.5,.95,119.9); campusNameStoneSign.rotation.y=Math.PI; scene.add(campusNameStoneSign);
   box('guard south wall',11.5,1.5,120,4,3,.3,0xd8d4cc,true); box('guard north wall',11.5,1.5,124,4,3,.3,0xd8d4cc,true); box('guard west wall',9.5,1.5,122,.3,3,4,0xd8d4cc,true); box('guard east wall',13.5,1.5,122,.3,3,4,0xd8d4cc,true);
   box('guard window band',11.5,1.95,119.8,3.4,1,.08,0x8fb2c9); box('guard roof',11.5,3.12,122,4.5,.24,4.5,0x8a8378); const guardSign=makeSign('门卫室',1.6,.65,'#37424e','#ffffff'); guardSign.position.set(11.5,2.9,119.78); guardSign.rotation.y=Math.PI; scene.add(guardSign); box('guard desk',11.5,.4,123,1.4,.8,.6,0x8a6a48,true);
   box('outside road floor',0,-.28,130,70,.2,10,0x555a60); for(const x of [-24,-12,0,12,24]) box('outside road marking',x,-.16,130,2.2,.02,.25,0xf5f2ea); box('outside road hedge',0,.55,135.5,70,1.1,.5,0x4e7a3a,true);
   for(const x of [16.5,19.5]) { box('bus stop pillar',x,1.25,131.5,.09,2.5,.09,0x6e7a84); colliders.push({bounds:{minX:x-.14,maxX:x+.14,minZ:131.36,maxZ:131.64}}); }
-  box('bus stop canopy',18,2.55,131.5,4.2,.12,1.7,0x4d7ab0); box('bus stop bench',18,.45,132,3.2,.1,.45,0x8a6a48,true); const busStopSign=makeSign('公交站',1.5,.7,'#1f5fa8','#ffffff'); busStopSign.position.set(16.5,2.1,131.2); busStopSign.rotation.y=Math.PI; scene.add(busStopSign);
+  box('bus stop canopy',18,2.55,131.5,4.2,.12,1.7,0x4d7ab0); box('bus stop bench',18,.45,132,3.2,.1,.45,0x8a6a48,true); const busStopSign=makeSign('公交站',1.5,.7,'#1f5fa8','#ffffff'); busStopSign.position.set(16.5,2.1,131.2); busStopSign.rotation.y=Math.PI; scene.add(busStopSign); for(const c of colliders)if(c.mesh&&c.mesh.name==='bus stop bench'){c.y0=-.6;c.y1=.49;} jumpSurface(16.4,19.6,131.78,132.22,.5);
   const entranceLampMat=new THREE.MeshLambertMaterial({color:0xfff3cf,emissive:0xffca7a,emissiveIntensity:.9});
   for(const x of [-8.6,8.6]) { const pole=new THREE.Mesh(new THREE.CylinderGeometry(.06,.08,3.4),mat(0x3f4a52)); pole.name='gate lamp post'; pole.position.set(x,1.7,122); scene.add(pole); const globe=new THREE.Mesh(new THREE.SphereGeometry(.14),entranceLampMat); globe.name='gate lamp globe'; globe.position.set(x,3.5,122); scene.add(globe); colliders.push({bounds:{minX:x-.13,maxX:x+.13,minZ:121.87,maxZ:122.13}}); }
   box('avenue floor',0,-.25,91.5,5,.25,67,0xe6dcc2); for(const [x,z] of [[4,64],[4,84],[-4,64],[-4,84]]) tree(x,z);
@@ -1084,7 +1134,7 @@ function deskSetPro(x,z){
     const portalNear=playerGroundY<1&&dist<2.6;const hoopDist=Math.hypot(camera.position.x-HOOP_POS.x,camera.position.z-HOOP_POS.z);
     if(portalNear) {prompt.style.display='block';prompt.textContent=!unlocked?'这扇门还没有出现。':p.enteredToday?'今天的裂隙已经闭合，明天再来吧。':'按 F 进入奇异空间';}
     else if(adminNear){prompt.style.display='block';prompt.textContent='按 F 和神秘人交谈';}
-    else if(!gameState.panelOpen&&hoopDist>=HOOP_TRIGGER_RADIUS&&Math.hypot(camera.position.x-teacher.group.position.x,camera.position.z-teacher.group.position.z)>CONFIG.talkDistance&&Math.hypot(camera.position.x-counselor.group.position.x,camera.position.z-counselor.group.position.z)>CONFIG.talkDistance&&!nearbyDoor&&!nearFakeDoor()&&!nearBed())prompt.style.display='none';
+    else if(!gameState.panelOpen&&hoopDist>=HOOP_TRIGGER_RADIUS&&Math.hypot(camera.position.x-teacher.group.position.x,camera.position.z-teacher.group.position.z)>CONFIG.talkDistance&&Math.hypot(camera.position.x-counselor.group.position.x,camera.position.z-counselor.group.position.z)>CONFIG.talkDistance&&!nearbyDoor&&!nearFakeDoor()&&!nearBed()&&!nearestPickup())prompt.style.display='none';
   }
   function playerVisibleToTeacher() {
     return playerVisibleTo(teacher,CONFIG.teacherViewDistance,CONFIG.teacherViewHalfAngle);
@@ -1138,7 +1188,8 @@ function deskSetPro(x,z){
     const bedNear = nearBed();
     const adminNear=playerGroundY<1&&admin.group.visible&&Math.hypot(camera.position.x-admin.group.position.x,camera.position.z-admin.group.position.z)<=CONFIG.talkDistance;
     const portalNear=playerGroundY<1&&Math.hypot(camera.position.x+8.3,camera.position.z+11.02)<2.6;
-    prompt.style.display = doorPrompt || fakeNear || bedNear || hoopPrompt || canTalk || canTalkCounselor || adminNear || portalNear ? 'block' : 'none';
+    const pkNear = nearestPickup();
+    prompt.style.display = doorPrompt || fakeNear || bedNear || hoopPrompt || canTalk || canTalkCounselor || adminNear || portalNear || pkNear ? 'block' : 'none';
     if (doorPrompt) prompt.textContent = '按 E ' + (nearbyDoor.open ? '关门' : '开门');
     else if (fakeNear) prompt.textContent = '按 F 敲门';
     else if (bedNear) prompt.textContent = '按 F 睡觉';
@@ -1147,10 +1198,55 @@ function deskSetPro(x,z){
     else if(canTalkCounselor) prompt.textContent='按 F 和周辅导员说话';
     else if(adminNear) prompt.textContent='按 F 和神秘人交谈';
     else if(portalNear) prompt.textContent=gameState.day<CONFIG.strangeUnlockDay?'这扇门还没有出现。':gameState.strangeSpaceData.enteredToday?'今天的裂隙已经闭合，明天再来吧。':'按 F 进入奇异空间';
+    else if(pkNear) prompt.textContent='按 F 捡起 '+pkNear.icon+' '+pkNear.name;
   }
   const BED_POS = { x:31.2, z:106.5 }; const BED_RADIUS = 2.2;
   let sleeping = false;
   function nearBed() { return Math.hypot(camera.position.x - BED_POS.x, camera.position.z - BED_POS.z) < BED_RADIUS; }
+  // 装备栏：校园里散落着可捡的道具，按 F 捡起，数字键 1-6 使用。
+  const inventory = [];
+  let boostUntil = 0;
+  const pickups = [];
+  function nearestPickup() { let best = null, bd = 1.8; for (const p of pickups) { if (!p.group.visible) continue; const d = Math.hypot(camera.position.x - p.x, camera.position.z - p.z); if (d < bd) { bd = d; best = p; } } return best; }
+  function addPickup(id, icon, name, x, z, color) {
+    const group = new THREE.Group();
+    const cube = new THREE.Mesh(new THREE.BoxGeometry(.36, .36, .36), new THREE.MeshLambertMaterial({ color, emissive: color, emissiveIntensity: .35 }));
+    cube.position.y = .55; group.add(cube);
+    const sign = makeSign(icon + ' ' + name, 1.15, .34, '#22303a', '#ffffff'); sign.position.y = 1.15; group.add(sign);
+    const sign2 = makeSign(icon + ' ' + name, 1.15, .34, '#22303a', '#ffffff'); sign2.position.y = 1.15; sign2.rotation.y = Math.PI; group.add(sign2);
+    group.position.set(x, 0, z); scene.add(group);
+    pickups.push({ id, icon, name, x, z, group, cube });
+  }
+  addPickup('soda', '🥤', '汽水', 4, 32, 0xd94f3d);
+  addPickup('coffee', '☕', '咖啡', 61.5, 39, 0x8a5a2b);
+  addPickup('notebook', '📓', '笔记本', 2.5, 20.5, 0x3f6fb5);
+  addPickup('ball', '🏀', '篮球', -52.5, 37.5, 0xd97b29);
+  addPickup('phones', '🎧', '耳机', 28, 58, 0x5a4a8a);
+  addPickup('umbrella', '☂️', '雨伞', 41, 97.5, 0x4d7ab0);
+  function updateHotbar() {
+    const hb = document.getElementById('hotbar');
+    hb.innerHTML = '';
+    for (let i = 0; i < 6; i++) { const d = document.createElement('div'); d.className = 'slot' + (inventory[i] ? '' : ' empty'); d.innerHTML = '<b>' + (i + 1) + '</b>' + (inventory[i] ? inventory[i].icon : ''); d.title = inventory[i] ? inventory[i].name : ''; hb.appendChild(d); }
+  }
+  function collectPickup(p) {
+    if (inventory.length >= 6) { showToast('装备栏满了，先用掉一些吧'); return; }
+    inventory.push({ id: p.id, icon: p.icon, name: p.name });
+    p.group.visible = false;
+    showToast('捡到：' + p.icon + ' ' + p.name + '（按数字键 ' + inventory.length + ' 使用）');
+    updateHotbar();
+  }
+  function useItem(i) {
+    const it = inventory[i]; if (!it) return;
+    inventory.splice(i, 1); updateHotbar();
+    if (it.id === 'soda') { gameState.suspicion = Math.max(0, gameState.suspicion - 25); showToast('🥤 喝了汽水，辅导员怀疑值 -25'); }
+    else if (it.id === 'coffee') { boostUntil = performance.now() + 20000; showToast('☕ 咖啡生效：20 秒内移动加速'); }
+    else if (it.id === 'notebook') { gameState.credits += 2; gameState.todayCredits += 2; showToast('📓 复习了笔记本，学分 +2'); onCreditsFull(); }
+    else if (it.id === 'ball') { if (jumpOff <= 0) vy = 5.2; showToast('🏀 原地运球，帅！'); }
+    else if (it.id === 'phones') { gameState.suspicion = Math.max(0, gameState.suspicion - 10); boostUntil = performance.now() + 10000; showToast('🎧 戴上耳机听歌：怀疑值 -10，脚步轻快 10 秒'); }
+    else if (it.id === 'umbrella') { gameState.suspicion = Math.max(0, gameState.suspicion - 5); showToast('☂️ 撑起雨伞，心情变好了，怀疑值 -5'); }
+    updateHUD();
+  }
+  updateHotbar();
   function advanceToNextDay() { gameState.day++; gameState.todayAttended=0; gameState.todaySkipped=0; gameState.todayCredits=0; gameState.todayBasketballCredits=0; gameState.strangeSpaceData.enteredToday=false; camera.position.set(0,1.6,5); yaw=0; pitch=0; camera.rotation.set(0,0,0,'YXZ'); buildSchedule(); }
   function finishSemester() { if (gameState.credits >= gameState.maxCredits) { winGame(); return; } clearSave(); gameState.panelOpen = true; showPanel('学期结束', `最终学分 ${gameState.credits}/${gameState.maxCredits} · 还差 ${Math.max(0,gameState.maxCredits-gameState.credits)} 分`, '重新开始', () => location.reload()); }
   function trySleep() {
@@ -1208,12 +1304,14 @@ function deskSetPro(x,z){
     if(gameState.chatOpen){if(e.code==='Escape'){e.preventDefault();closeChat();}else if(e.code==='Enter'&&document.activeElement!==chatInput){e.preventDefault();sendChat();}return;}
     keys.add(e.code);
     if (e.code === 'Space') e.preventDefault();
+    if (/^Digit[1-6]$/.test(e.code) && document.pointerLockElement === renderer.domElement) useItem(parseInt(e.code.slice(5)) - 1);
     if (e.code === 'KeyE' && document.pointerLockElement === renderer.domElement && nearbyDoor) {
       nearbyDoor.open = !nearbyDoor.open;
       nearbyDoor.passable=false;
     } else if (e.code === 'KeyE' && document.pointerLockElement === renderer.domElement && nearFakeDoor()) { const fd=nearFakeDoor(); showToast(fd.msg || '不是你的宿舍'); }
     if (e.code === 'KeyF' && document.pointerLockElement === renderer.domElement) {
       if(gameState.inStrangeSpace){if(Math.hypot(camera.position.x-120,camera.position.z-5)<1.6)leaveStrangeSpace();return;}
+      const pk = nearestPickup(); if (pk) { collectPickup(pk); return; }
       const fd = nearFakeDoor();
       const hoopDistance = Math.hypot(camera.position.x - HOOP_POS.x, camera.position.z - HOOP_POS.z);
       const period = gameState.schedule[gameState.periodIndex];
@@ -1240,7 +1338,7 @@ function deskSetPro(x,z){
   function overlaps(x, z, b) { return x + playerRadius > b.minX && x - playerRadius < b.maxX && z + playerRadius > b.minZ && z - playerRadius < b.maxZ; }
   function collides(x, z) {
     for (const c of colliders) {
-      if (c.y0 !== undefined && (playerGroundY < c.y0 || playerGroundY > c.y1)) continue;
+      if (c.y0 !== undefined && (playerGroundY + jumpOff < c.y0 || playerGroundY + jumpOff > c.y1)) continue;
       if (c.door) {
         if (Math.abs(playerGroundY-c.door.floorY)>1.9) continue;
         if (!c.door.passable && overlaps(x, z, c.door.cachedBounds)) return true;
@@ -1281,17 +1379,17 @@ function deskSetPro(x,z){
     if (gameState.minigameOpen) { updateSchedule(dt); updateTeacher(dt); return; }
     if(gameState.chatOpen){if(currentChat&&Math.hypot(camera.position.x-currentChat.npc.group.position.x,camera.position.z-currentChat.npc.group.position.z)>CONFIG.talkDistance+1.5)closeChat();updateTeacher(dt);return;}
     if(gameState.inStrangeSpace){updateStrangeSpace(dt);if(!gameState.inStrangeSpace){updateHUD();return;}const s=((keys.has('ShiftLeft')||keys.has('ShiftRight'))?7.4:4.6)*dt;forward.set(-Math.sin(yaw),0,-Math.cos(yaw));right.set(Math.cos(yaw),0,-Math.sin(yaw));move.set(0,0,0);if(keys.has('KeyW'))move.add(forward);if(keys.has('KeyS'))move.sub(forward);if(keys.has('KeyD'))move.add(right);if(keys.has('KeyA'))move.sub(right);if(move.lengthSq()){move.normalize().multiplyScalar(s);camera.position.x+=move.x;camera.position.z+=move.z;}camera.position.x=Math.max(110.6,Math.min(129.4,camera.position.x));camera.position.z=Math.max(-8.4,Math.min(8.4,camera.position.z));camera.position.y=1.6+jumpStep(dt);updateHUD();return;}
-    const speed = ((keys.has('ShiftLeft') || keys.has('ShiftRight')) ? 7.4 : 4.6) * dt;
+    const speed = ((keys.has('ShiftLeft') || keys.has('ShiftRight')) ? 7.4 : 4.6) * (performance.now() < boostUntil ? 1.35 : 1) * dt;
     const prevX = camera.position.x, prevZ = camera.position.z;
     if (collides(prevX, prevZ)) {
+      // Slide out along a ray to the FIRST free point — never teleports across a wall.
       let escaped = false;
-      for (let distance = .08; distance <= 1.36 && !escaped; distance += .08) {
-        for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-          const x = prevX + dx * distance, z = prevZ + dz * distance;
-          if (!collides(x, z)) {
-            camera.position.x = x; camera.position.z = z; escaped = true; break;
-          }
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        for (let d = .04; d <= 1.4; d += .04) {
+          const x = prevX + dx * d, z = prevZ + dz * d;
+          if (!collides(x, z)) { camera.position.x = x; camera.position.z = z; escaped = true; break; }
         }
+        if (escaped) break;
       }
       if (!escaped) { camera.position.x = prevX; camera.position.z = prevZ; }
     }
@@ -1313,7 +1411,7 @@ function deskSetPro(x,z){
         if (!collides(camera.position.x, candidateZ)) camera.position.z = candidateZ;
       }
     }
-    if (!gameState.inStrangeSpace) { const g=groundHeightAt(camera.position.x,camera.position.z,playerGroundY); playerGroundY=g; camera.position.y=g+1.6+jumpStep(dt); } else playerGroundY=0;
+    if (!gameState.inStrangeSpace) { const jo=jumpStep(dt); let g=groundHeightAt(camera.position.x,camera.position.z,playerGroundY); if (vy<0 && jo>0) { const feetY=playerGroundY+jo; let land=null; for (const h of surfaceHeightsAt(camera.position.x,camera.position.z)) if (h>playerGroundY && h<=feetY+.02 && (land===null||h>land)) land=h; if (land!==null && feetY-land<.3) { playerGroundY=land; vy=0; jumpOff=0; camera.position.y=land+1.6; } else { playerGroundY=g; camera.position.y=g+1.6+jo; } } else { playerGroundY=g; camera.position.y=g+1.6+jo; } } else playerGroundY=0;
     nearbyDoor = null;
     for (const door of doors) {
       if(Math.abs(playerGroundY-door.floorY)>1.9) continue;
@@ -1481,11 +1579,31 @@ function deskSetPro(x,z){
     renderer.setRenderTarget(null);
   }
   window.addEventListener('keydown', (e) => { if (e.code === 'KeyP') { postFX.level = (postFX.level + 2) % 3; postFX.auto = false; } });
+  const minimapCtx = document.getElementById('minimap').getContext('2d');
+  const MAP_RECTS = [[-88,-22,46,94,'#3f7a3a'],[-60,-45,29,40,'#2e6f7e'],[-18,18,23,58,'#5a6a72'],[-10,10,-23,23,'#8a97a5'],[30,46,50,66,'#8a97a5'],[64,98,24,54,'#8a97a5'],[70,98,60,86,'#8a97a5'],[52,68,70,84,'#8a97a5'],[26,51.4,70,78,'#8a97a5'],[30,44,82,94,'#5b83b4'],[4,28,86,108,'#8a97a5'],[30,104,102,124,'#a08a68'],[-34,-4,94,118,'#8a97a5'],[-92,-68,24,44,'#8a97a5'],[-95.5,-89,52,88,'#b0a58e']];
+  let mapTick = 0;
+  function drawMinimap() {
+    if ((mapTick = (mapTick + 1) % 6) !== 0) return;
+    const c = minimapCtx, W = 196, H = 196;
+    const mx = x => (x + 105) / 215 * W, mz = z => (z + 15) / 155 * H;
+    if (gameState.inStrangeSpace) { c.fillStyle = '#241a33'; c.fillRect(0, 0, W, H); c.fillStyle = '#c18cff'; c.font = '15px sans-serif'; c.fillText('奇异空间', 66, 102); return; }
+    c.fillStyle = 'rgba(16,24,20,.88)'; c.fillRect(0, 0, W, H);
+    for (const [x0, x1, z0, z1, col] of MAP_RECTS) { c.fillStyle = col; c.fillRect(mx(x0), mz(z0), mx(x1) - mx(x0), mz(z1) - mz(z0)); }
+    for (const p of pickups) { if (!p.group.visible) continue; c.fillStyle = '#ffd94d'; c.beginPath(); c.arc(mx(p.x), mz(p.z), 2.4, 0, 7); c.fill(); }
+    c.fillStyle = '#ffb35c'; c.beginPath(); c.arc(mx(teacher.group.position.x), mz(teacher.group.position.z), 3, 0, 7); c.fill();
+    if (counselor.group.visible) { c.fillStyle = '#c18cff'; c.beginPath(); c.arc(mx(counselor.group.position.x), mz(counselor.group.position.z), 3, 0, 7); c.fill(); }
+    const px = mx(camera.position.x), pz = mz(camera.position.z);
+    c.strokeStyle = '#fff'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(px, pz); c.lineTo(px - Math.sin(yaw) * 10, pz - Math.cos(yaw) * 10); c.stroke();
+    c.fillStyle = '#fff'; c.beginPath(); c.arc(px, pz, 3.6, 0, 7); c.fill();
+    c.fillStyle = 'rgba(255,255,255,.85)'; c.font = '10px sans-serif'; c.fillText('北 ↑', 6, 12);
+  }
   function animate(now) {
     requestAnimationFrame(animate);
     const dt = Math.min((now - last) / 1000, .05); last = now;
     update(dt);
     updatePlayerAvatar(dt);
+    for (const p of pickups) if (p.group.visible) { p.cube.rotation.y += dt * 2; p.cube.position.y = .55 + Math.sin(now * .003 + p.x) * .07; }
+    drawMinimap();
     if(saveEnabled&&!gameState.finished&&now-lastSaveCheck>=500){lastSaveCheck=now;try{const snapshot=JSON.stringify(makeSaveSnapshot());if(snapshot!==lastSavedSnapshot)saveGame();}catch(_){}}
     camera.rotation.set(pitch,yaw,0,'YXZ');
     renderFrame(now);
