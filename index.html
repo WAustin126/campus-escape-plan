@@ -621,7 +621,7 @@ function deskSetPro(x,z){
     if (opts.longHair) { const lh = new THREE.Mesh(bevelGeo(.46, .55, .10, .045), pmat(opts.hair)); lh.name = 'person long hair'; lh.position.set(0, 1.47, -.215); g.add(lh); }
     return { group: g, armL, armR, legL, legR };
   }
-  const playerAvatar=blockPerson({skin:0xe8b98d,hair:0x2b2320,torso:0x2f6fd0,pants:0x2b3a55,accent:0xffffff,backpack:0xd0483a,shoes:0xf0f0f0});scene.add(playerAvatar.group);
+  const playerAvatar=blockPerson({skin:0xe8b98d,hair:0x2b2320,torso:0x2f6fd0,pants:0x2b3a55,accent:0xffffff,backpack:0xd0483a,shoes:0xf0f0f0});scene.add(playerAvatar.group);playerAvatar.group.visible=false;
   let avatarX=0,avatarZ=5,walkPhase=0,avatarAmp=0;
   function updatePlayerAvatar(dt){const x=camera.position.x,z=camera.position.z,mx=x-avatarX,mz=z-avatarZ,moved=Math.hypot(mx,mz);avatarX=x;avatarZ=z;playerAvatar.group.position.set(x,playerGroundY,z);walkPhase+=moved*2.4;avatarAmp+=( (moved>.01?.6:0)-avatarAmp)*(1-Math.exp(-12*dt));playerAvatar.armL.rotation.x=Math.sin(walkPhase)*avatarAmp;playerAvatar.armR.rotation.x=-playerAvatar.armL.rotation.x;playerAvatar.legL.rotation.x=-playerAvatar.armL.rotation.x;playerAvatar.legR.rotation.x=playerAvatar.armL.rotation.x;let target=moved>.01?Math.atan2(mx,mz):yaw+Math.PI,delta=Math.atan2(Math.sin(target-playerAvatar.group.rotation.y),Math.cos(target-playerAvatar.group.rotation.y));playerAvatar.group.rotation.y+=delta*(1-Math.exp(-12*dt));}
   // 严老师只沿教室中央过道与走廊中线巡逻，不参与玩家碰撞。
@@ -1480,9 +1480,8 @@ function deskSetPro(x,z){
     update(dt);
     updatePlayerAvatar(dt);
     if(saveEnabled&&!gameState.finished&&now-lastSaveCheck>=500){lastSaveCheck=now;try{const snapshot=JSON.stringify(makeSaveSnapshot());if(snapshot!==lastSavedSnapshot)saveGame();}catch(_){}}
-    const savedPos=placeCamera();
+    camera.rotation.set(pitch,yaw,0,'YXZ');
     renderFrame(now);
-    camera.position.copy(savedPos);camera.rotation.set(pitch,yaw,0,'YXZ');
   }
   animate(last);
   window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
