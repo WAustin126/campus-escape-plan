@@ -56,8 +56,8 @@
 </style>
 </head>
 <body>
-<div id="overlay" class="prestart"><h1>校园逃跑计划</h1><div id="startButtons"></div><p>WASD 移动 · 鼠标视角 · 空格 跳跃 · Shift 奔跑</p><p>版本：11/16 夜 · 看台/小地图/装备栏版</p></div>
-<div id="hud"><div id="stats"></div><div id="floorBadge">1F</div><div id="skipBadge">⚠ 逃课中</div><div id="alertBar"><div id="alertFill"></div></div><div id="suspicionRow" style="display:none">怀疑值</div><div id="suspicionBar"><div id="suspicionFill"></div></div><div id="questRow" style="display:none"></div><div id="escapeHint" style="display:none">学分已满，去校门离开校园！</div><div id="help">WASD 移动 · 鼠标视角 · E 开门/关门 · F 对话/打篮球/交互 · 空格 跳跃 · Shift 奔跑 · 楼梯间在北走廊两端 · 版本 11/16夜·看台版</div></div>
+<div id="overlay" class="prestart"><h1>校园逃跑计划</h1><div id="startButtons"></div><p>WASD 移动 · 鼠标视角 · 空格 跳跃 · Shift 奔跑</p><p>版本：11/16 夜 · 二楼回廊版</p></div>
+<div id="hud"><div id="stats"></div><div id="floorBadge">1F</div><div id="skipBadge">⚠ 逃课中</div><div id="alertBar"><div id="alertFill"></div></div><div id="suspicionRow" style="display:none">怀疑值</div><div id="suspicionBar"><div id="suspicionFill"></div></div><div id="questRow" style="display:none"></div><div id="escapeHint" style="display:none">学分已满，去校门离开校园！</div><div id="help">WASD 移动 · 鼠标视角 · E 开门/关门 · F 对话/打篮球/交互 · 空格 跳跃 · Shift 奔跑 · 楼梯间在北走廊两端 · 版本 11/16夜·二楼回廊版</div></div>
 <div id="crosshair"></div><div id="prompt">按 E 开门</div><canvas id="minimap" width="196" height="196"></canvas><div id="hotbar"></div><div id="dialog"><img id="dialogPortrait" alt=""><span id="dialogName">严老师</span><span id="dialogText"></span><div id="chatBox" style="display:none"><div id="chatMeta"></div><input id="chatInput" type="text" maxlength="120" placeholder="输入你想说的话…"><button id="chatSend" type="button">发送</button><span id="chatHint">Esc 关闭</span></div></div>
 <div id="toast"></div><div id="summary"></div><div id="fade"></div>
 <div id="basketballOverlay"><button id="basketballClose" type="button">✕ 关闭</button><iframe title="篮球小游戏" src="about:blank"></iframe></div>
@@ -97,7 +97,7 @@
     const inRect=(x0,x1,z0,z1)=>x>=x0&&x<=x1&&z>=z0&&z<=z1;
     const hs=[];
     if(inRect(-10,10,-23,-11.2)||inRect(-5.9,.6,-11.2,6.8)||inRect(6.2,10,1.8,6.8)||inRect(-10,-5.9,1.8,6.8)||inRect(.6,6.2,-11.2,6.8))hs.push(FLOOR_H);
-    if(inRect(8.2,10,6.8,9)||inRect(-10,-8.2,6.8,9))hs.push(FLOOR_H);
+    if(inRect(-10,10,6.8,9))hs.push(FLOOR_H);
     if(inRect(8.2,10,9,19.8)||inRect(-10,-8.2,9,19.8))hs.push(3.6*(19.8-z)/10.8);
     if(inRect(.8,6,-8.875,-7.525))hs.push(3.9); if(inRect(.8,6,-6.575,-5.225))hs.push(4.18); if(inRect(.8,6,-4.275,-2.925))hs.push(4.46);
     if(inRect(-10,-5.9,-11.2,-9))hs.push(FLOOR_H);
@@ -291,6 +291,12 @@
   wall('2F D west',-5.9,5.4,-4.3,.22,3.6,13.8,3.6);wall('2F D west south',-5.9,5.4,5.7,.22,3.6,2.2,3.6);wall('2F D/multimedia partition',.6,5.4,-2.2,.22,3.6,18,3.6);wall('2F multimedia east',6.2,5.4,-4.3,.22,3.6,13.8,3.6);wall('2F multimedia east south',6.2,5.4,5.7,.22,3.6,2.2,3.6);
   wall('2F D wing south',-6.65,5.4,6.8,1.5,3.6,.28,3.6); roomDoor('二楼西翼门',6.8,-8.7,3.6,-1);wall('2F D wing west',-10,5.4,4.3,.22,3.6,5,3.6);wall('2F D wing partition',-5.9,5.4,2.2,.22,3.6,.8,3.6);wall('2F D wing partition south',-5.9,5.4,5.7,.22,3.6,2.2,3.6);
   wall('2F multimedia wing south',6.8,5.4,6.8,1.2,3.6,.28,3.6); roomDoor('二楼东翼门',6.8,8.7,3.6,-1);wall('2F multimedia wing east',10,5.4,4.3,.22,3.6,5,3.6);wall('2F multimedia wing partition',6.2,5.4,2.2,.22,3.6,.8,3.6);wall('2F multimedia wing partition south',6.2,5.4,5.7,.22,3.6,2.2,3.6);
+  // 二楼回廊侧改造：补齐中段南墙的二层墙体（原只有一层碰撞，能穿墙坠落），新开实验室/音乐教室两扇门，封两翼旧缺口，加中部隔墙。
+  wall('2F south wall A',-4.9,5.4,6.8,2,3.6,.34,3.6);wall('2F south wall B',.4,5.4,6.8,3.4,3.6,.34,3.6);wall('2F south wall C',5.45,5.4,6.8,1.5,3.6,.34,3.6);
+  roomDoor('计算机实验室门（2F）',6.8,-2.6,3.6,-1);roomDoor('音乐教室门（2F）',6.8,3.4,3.6,-1);
+  addSign('图书角',1.6,.48,'#5a4632','#fff3d6',-8.7,6.2,7.02);addSign('计算机实验室',2.2,.48,'#1d6b1d','#eaffea',-2.6,6.2,7.02);addSign('音乐教室',2,.48,'#5b2d91','#f3eaff',3.4,6.2,7.02);addSign('器材室',1.6,.48,'#5a4632','#fff3d6',8.7,6.2,7.02);
+  wall('2F west gap seal',-5.9,5.4,3.6,.22,3.6,2,3.6);wall('2F east gap seal',6.2,5.4,3.6,.22,3.6,2,3.6);
+  wall('2F lab partition',-2.65,5.4,.2,6.5,3.6,.22,3.6);wall('2F music partition',3.4,5.4,.2,5.6,3.6,.22,3.6);
   // Stair body seals: block ground-level entry into the solid stair masses (legit crossings happen above these bands).
   addColliderBounds(-9.9,-6.1,-3.72,-3.48,-.6,1.7); addColliderBounds(-9.9,-8.1,-5.32,-5.08,-.6,1.55);
   addColliderBounds(6.3,9.95,-3.72,-3.48,-.6,1.7); addColliderBounds(8.25,9.95,-5.32,-5.08,-.6,1.55);
@@ -389,8 +395,17 @@ function deskSetPro(x,z){
   for(const fz of [-6,2]){proCylinder('pro fan rod',0,3.35,fz,.03,.03,.5,mat(0x59636b),8);proCylinder('pro fan hub',0,3.08,fz,.14,.14,.1,mat(0x59636b),12);for(const a of [0,2.094,4.189]){const blade=new THREE.Mesh(new THREE.BoxGeometry(1.15,.03,.2),mat(0xd8d5cc));blade.geometry.translate(.68,0,0);blade.name='pro fan blade';blade.position.set(0,3.08,fz);blade.rotation.y=a;scene.add(blade);}proCylinder('pro fan pull',.1,2.8,fz,.012,.012,.45,mat(0x8a8578),6);}
   for(const x of [-4.2,0,4.2])sunPatch(x,4.4,2.6,3.4,0,.5);
   // 2F blackboard and three tier media seating.
-  box('D blackboard',-2.65,6.85,-10.94,4.5,1.7,.14,0x176d4b);for(let row=0;row<4;row++)for(let col=0;col<2;col++)deskSet(-4.1+col*2.2,-7.3+row*3.1,3.6,B2,'D desk');
+  box('D blackboard',-2.65,6.85,-10.94,4.5,1.7,.14,0x176d4b);for(let row=0;row<3;row++)for(let col=0;col<2;col++)deskSet(-4.1+col*2.2,-7.3+row*3.1,3.6,B2,'D desk');
   box('multimedia screen',3.4,6.65,-10.98,4.2,2.1,.12,0x222d3d);for(let tier=0;tier<3;tier++){const tz=-8.2+tier*2.3;box('media tier',3.4,3.75+tier*.28,tz,5.2,.3,1.35,0x9b9589);for(let col=0;col<4;col++){const x=1.25+col*1.43,z=-8.35+tier*2.3;box('media seat',x,4.18+tier*.28,z,.9,.34,.55,0x4d6a88);}}
+  // 计算机实验室（D 教室南半）：白板、讲台、双人电脑桌三排两列。
+  box('lab whiteboard',-2.65,5.3,.36,3.6,1.3,.08,0xeef1ed);
+  box('lab teacher desk',-2.65,3.95,1.15,1.7,.7,.6,0x8a6a48);addColliderBounds(-3.55,-1.75,.8,1.5,B2.y0,B2.y1);
+  for(let row=0;row<3;row++)for(let col=0;col<2;col++){const dx=-4.6+col*3.15,dz=2.2+row*1.6;box('lab desk',dx,3.97,dz,2.2,.74,.85,0xa8b6c2);addColliderBounds(dx-1.1,dx+1.1,dz-.45,dz+.45,B2.y0,B2.y1);for(const mx of [-0.55,0.55]){box('lab monitor',dx+mx,4.55,dz-.18,.58,.4,.05,0x222d3d);box('lab keyboard',dx+mx,4.37,dz+.12,.5,.03,.18,0xd8dde2);}box('lab chair',dx,3.95,dz+.72,.5,.7,.45,0x4d6a88);}
+  addSign('计算机实验室',2.2,.5,'#1d6b1d','#eaffea',-2.65,5.6,.36);
+  // 音乐教室（多媒体教室南半）：钢琴一台，座椅与谱架两排。
+  box('music piano body',5.15,4.08,1.55,1.45,.28,.95,0x23202a);box('music piano lid',5.15,4.3,1.5,1.45,.05,.95,0x2e2a36);box('music piano keys',4.55,4.02,1.55,.32,.07,.5,0xf2f0e8);for(const [lx,lz] of [[4.55,1.2],[5.75,1.2],[4.55,1.9],[5.75,1.9]])box('music piano leg',lx,3.85,lz,.07,.5,.07,0x23202a);box('music piano bench',4.35,3.85,1.55,.55,.5,.32,0x3a3444);addColliderBounds(4.35,5.9,1,2.1,B2.y0,B2.y1);
+  for(let row=0;row<2;row++)for(let col=0;col<3;col++){const cx2=1.7+col*1.35,cz2=3.6+row*1.9;box('music chair',cx2,3.95,cz2,.52,.7,.48,0x7a4a56);box('music stand',cx2,4.35,cz2-.5,.06,1,.42,0x37474f);}
+  addSign('音乐教室',1.8,.5,'#5b2d91','#f3eaff',3.4,5.6,.36);
   for(let i=0;i<5;i++){const z=2.5+i*.72;box('D wing bookshelf',-9.65,5.15,z,.45,2.9,.62,0x8a6a48);addColliderBounds(-9.99,-9.31,z-.34,z+.34,B2.y0,B2.y1);}for(let i=0;i<18;i++)box('D bookshelf book',-9.38,4.1+Math.floor(i/5)*.58,2.5+(i%5)*.72,.16,.42,.4,[0x3f6fb5,0xc0533f,0x7a9e7e,0xd9a441][i%4]);
   // North room interiors: workstation, meeting room, restrooms and hallway utility details.
   function officeDeskPro(x,z){
@@ -423,10 +438,16 @@ function deskSetPro(x,z){
     for (let i=0;i<20;i++){ const h=.18*(i+1); box('lobby stair step',cx,h/2,19.8-.54*i-.27,1.8,h,.54,0xb9b3a8); }
     box('lobby mezzanine slab',cx,3.47,7.9,1.8,.26,2.2,0xcac2b2);
     const rail=box('lobby stair rail',sgn*8.26,2.8,14.4,.07,.07,11.4,0x8a94a0); rail.rotation.x=Math.atan2(3.6,10.8);
-    box('lobby mezzanine rail',sgn*8.26,4.55,7.9,.07,.07,2.2,0x8a94a0);
-    addColliderBounds(sgn>0?8.02:-8.38,sgn>0?8.38:-8.02,6.8,9,3.0,5.6);
     addSign('楼梯',1.6,.48,'#3d5a73','#ffffff',sgn*9.8,2.6,21.5,-sgn*Math.PI/2);
   }
+  // 二楼回廊桥：把两座大厅楼梯的落点连成整条回廊，南侧栏杆俯瞰大厅。
+  box('lobby bridge slab',0,3.47,7.9,16.4,.26,2.2,0xcac2b2);
+  box('lobby bridge beam',0,3.08,7.9,16.4,.5,.42,0xb7aea0);
+  for (const px of [-5,5]) { box('lobby bridge pillar',px,1.55,7.9,.45,3.1,.45,0xb7aea0); addColliderBounds(px-.25,px+.25,7.65,8.15,B1.y0,B1.y1); }
+  box('bridge rail top',0,4.62,9,16.4,.07,.07,0x8a94a0); box('bridge rail mid',0,4.12,9,16.4,.05,.05,0x8a94a0);
+  for (let rx=-8;rx<=8;rx+=2) box('bridge rail post',rx,4.1,9,.06,1,.06,0x8a94a0);
+  addColliderBounds(-8.2,8.2,8.8,9.2,3.6,5.6);
+  addSign('二楼回廊',2.4,.6,'#3d5a73','#ffffff',0,6.3,8.55);
   // 校园外围、教学楼立面与远景。
   box('campus grass floor', 5, -.3, 72.5, 200, .24, 105, 0x77b25a);
   for (const [name, x, z, sx, sz] of [['campus wall south west', -60.5, 23, 69, .4], ['campus wall south east', 65.5, 23, 79, .4], ['campus wall west', -95, 74, .4, 102], ['campus wall north west', -51, 125, 88, .4], ['campus wall north east', 56, 125, 98, .4], ['campus wall east', 105, 74, .4, 102]]) box(name, x, 1.1, z, sx, 2.2, sz, 0xa8a29a, true);
