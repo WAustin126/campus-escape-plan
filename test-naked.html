@@ -56,8 +56,8 @@
 </style>
 </head>
 <body>
-<div id="overlay" class="prestart"><h1>校园逃跑计划</h1><div id="startButtons"></div><p>WASD 移动 · 鼠标视角 · 空格 跳跃 · Shift 奔跑</p><p>版本：11/16 夜 · 实验楼三层版</p></div>
-<div id="hud"><div id="stats"></div><div id="floorBadge">1F</div><div id="skipBadge">⚠ 逃课中</div><div id="alertBar"><div id="alertFill"></div></div><div id="suspicionRow" style="display:none">怀疑值</div><div id="suspicionBar"><div id="suspicionFill"></div></div><div id="questRow" style="display:none"></div><div id="escapeHint" style="display:none">学分已满，去校门离开校园！</div><div id="help">WASD 移动 · 鼠标视角 · E 开门/关门 · F 对话/打篮球/交互 · 空格 跳跃 · Shift 奔跑 · 楼梯间在北走廊两端 · 版本 11/16夜·实验楼三层版</div></div>
+<div id="overlay" class="prestart"><h1>校园逃跑计划</h1><div id="startButtons"></div><p>WASD 移动 · 鼠标视角 · 空格 跳跃 · Shift 奔跑</p><p>版本：11/17 凌晨 · 穿墙修复版</p></div>
+<div id="hud"><div id="stats"></div><div id="floorBadge">1F</div><div id="skipBadge">⚠ 逃课中</div><div id="alertBar"><div id="alertFill"></div></div><div id="suspicionRow" style="display:none">怀疑值</div><div id="suspicionBar"><div id="suspicionFill"></div></div><div id="questRow" style="display:none"></div><div id="escapeHint" style="display:none">学分已满，去校门离开校园！</div><div id="help">WASD 移动 · 鼠标视角 · E 开门/关门 · F 对话/打篮球/交互 · 空格 跳跃 · Shift 奔跑 · 楼梯间在北走廊两端 · 版本 11/17凌晨·穿墙修复版</div></div>
 <div id="crosshair"></div><div id="prompt">按 E 开门</div><canvas id="minimap" width="196" height="196"></canvas><div id="hotbar"></div><div id="dialog"><img id="dialogPortrait" alt=""><span id="dialogName">严老师</span><span id="dialogText"></span><div id="chatBox" style="display:none"><div id="chatMeta"></div><input id="chatInput" type="text" maxlength="120" placeholder="输入你想说的话…"><button id="chatSend" type="button">发送</button><span id="chatHint">Esc 关闭</span></div></div>
 <div id="toast"></div><div id="summary"></div><div id="fade"></div>
 <div id="basketballOverlay"><button id="basketballClose" type="button">✕ 关闭</button><iframe title="篮球小游戏" src="about:blank"></iframe></div>
@@ -1585,6 +1585,21 @@ function deskSetPro(x,z){
     }
     return false;
   }
+  function collidersAt(x, z) {
+    const hit = [];
+    for (const c of colliders) {
+      if (c.y0 !== undefined && (playerGroundY + jumpOff < c.y0 || playerGroundY + jumpOff > c.y1)) continue;
+      if (c.door) {
+        if (Math.abs(playerGroundY - c.door.floorY) > 1.9) continue;
+        if (!c.door.passable && overlaps(x, z, c.door.cachedBounds)) hit.push(c);
+      } else {
+        let b = c.bounds;
+        if (!b) { const p = c.mesh.position; b = { minX: p.x - c.sx / 2, maxX: p.x + c.sx / 2, minZ: p.z - c.sz / 2, maxZ: p.z + c.sz / 2 }; }
+        if (overlaps(x, z, b)) hit.push(c);
+      }
+    }
+    return hit;
+  }
   function updateDoors(dt) {
     const step=Math.PI*.48/.25*dt;
     for(const door of doors){const target=door.open?door.direction*Math.PI*.48:0,cur=door.pivot.rotation.y,diff=target-cur;if(Math.abs(diff)>.000001){door.pivot.rotation.y=cur+Math.sign(diff)*Math.min(Math.abs(diff),step);door.cachedBounds=doorBounds(door);}if(Math.abs(door.pivot.rotation.y-target)<.000001){door.pivot.rotation.y=target;door.passable=door.open;}else door.passable=false;}
@@ -1614,12 +1629,17 @@ function deskSetPro(x,z){
     const speed = ((keys.has('ShiftLeft') || keys.has('ShiftRight')) ? 7.4 : 4.6) * (performance.now() < boostUntil ? 1.35 : 1) * dt;
     const prevX = camera.position.x, prevZ = camera.position.z;
     if (collides(prevX, prevZ)) {
-      // Slide out along a ray to the FIRST free point — never teleports across a wall.
+      // Slide out along a ray, but only through space covered by the colliders
+      // already overlapping the player: a ray that meets any NEW collider is
+      // blocked, so the slide can never pop the player through a wall.
+      const startSet = new Set(collidersAt(prevX, prevZ));
       let escaped = false;
       for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
         for (let d = .04; d <= 1.4; d += .04) {
           const x = prevX + dx * d, z = prevZ + dz * d;
-          if (!collides(x, z)) { camera.position.x = x; camera.position.z = z; escaped = true; break; }
+          const here = collidersAt(x, z);
+          if (!here.length) { camera.position.x = x; camera.position.z = z; escaped = true; break; }
+          if (here.some(c => !startSet.has(c))) break;
         }
         if (escaped) break;
       }
