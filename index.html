@@ -56,8 +56,8 @@
 </style>
 </head>
 <body>
-<div id="overlay" class="prestart"><h1>校园逃跑计划</h1><div id="startButtons"></div><p>WASD 移动 · 鼠标视角 · 空格 跳跃 · Shift 奔跑</p><p>版本：11/16 夜 · 二楼回廊版</p></div>
-<div id="hud"><div id="stats"></div><div id="floorBadge">1F</div><div id="skipBadge">⚠ 逃课中</div><div id="alertBar"><div id="alertFill"></div></div><div id="suspicionRow" style="display:none">怀疑值</div><div id="suspicionBar"><div id="suspicionFill"></div></div><div id="questRow" style="display:none"></div><div id="escapeHint" style="display:none">学分已满，去校门离开校园！</div><div id="help">WASD 移动 · 鼠标视角 · E 开门/关门 · F 对话/打篮球/交互 · 空格 跳跃 · Shift 奔跑 · 楼梯间在北走廊两端 · 版本 11/16夜·二楼回廊版</div></div>
+<div id="overlay" class="prestart"><h1>校园逃跑计划</h1><div id="startButtons"></div><p>WASD 移动 · 鼠标视角 · 空格 跳跃 · Shift 奔跑</p><p>版本：11/16 夜 · 实验楼三层版</p></div>
+<div id="hud"><div id="stats"></div><div id="floorBadge">1F</div><div id="skipBadge">⚠ 逃课中</div><div id="alertBar"><div id="alertFill"></div></div><div id="suspicionRow" style="display:none">怀疑值</div><div id="suspicionBar"><div id="suspicionFill"></div></div><div id="questRow" style="display:none"></div><div id="escapeHint" style="display:none">学分已满，去校门离开校园！</div><div id="help">WASD 移动 · 鼠标视角 · E 开门/关门 · F 对话/打篮球/交互 · 空格 跳跃 · Shift 奔跑 · 楼梯间在北走廊两端 · 版本 11/16夜·实验楼三层版</div></div>
 <div id="crosshair"></div><div id="prompt">按 E 开门</div><canvas id="minimap" width="196" height="196"></canvas><div id="hotbar"></div><div id="dialog"><img id="dialogPortrait" alt=""><span id="dialogName">严老师</span><span id="dialogText"></span><div id="chatBox" style="display:none"><div id="chatMeta"></div><input id="chatInput" type="text" maxlength="120" placeholder="输入你想说的话…"><button id="chatSend" type="button">发送</button><span id="chatHint">Esc 关闭</span></div></div>
 <div id="toast"></div><div id="summary"></div><div id="fade"></div>
 <div id="basketballOverlay"><button id="basketballClose" type="button">✕ 关闭</button><iframe title="篮球小游戏" src="about:blank"></iframe></div>
@@ -108,6 +108,18 @@
     if(inRect(8.25,9.95,-10.6,-5.2))hs.push(1.8*(z+10.6)/5.4);
     if(inRect(6.3,9.95,-5.2,-3.6))hs.push(1.8);
     if(inRect(6.3,8.05,-9,-3.6))hs.push(1.8+1.8*(-3.6-z)/5.4);
+    if(inRect(-89.2,-68,24,44)||inRect(-92,-89.2,32.9,44))hs.push(3.6);
+    if(inRect(-89.2,-68,24,44)||inRect(-92,-89.2,32.9,44))hs.push(7.2);
+    if(inRect(-92,-90.75,25.9,31.3))hs.push(1.8*(31.3-z)/5.4);
+    if(inRect(-92,-89.2,24,25.9))hs.push(1.8);
+    if(inRect(-90.45,-89.2,25.9,31.3))hs.push(1.8+1.8*(z-25.9)/5.4);
+    if(inRect(-90.45,-89.2,31.3,32.9))hs.push(3.6);
+    if(inRect(-92,-89.2,31.3,32.9))hs.push(3.6);
+    if(inRect(-92,-90.75,25.9,31.3))hs.push(3.6+1.8*(31.3-z)/5.4);
+    if(inRect(-92,-89.2,24,25.9))hs.push(5.4);
+    if(inRect(-90.45,-89.2,25.9,31.3))hs.push(5.4+1.8*(z-25.9)/5.4);
+    if(inRect(-90.45,-89.2,31.3,32.9))hs.push(7.2);
+    if(inRect(-92,-89.2,31.3,32.9))hs.push(7.2);
     for (const s of jumpSurfaces) if (x >= s.x0 && x <= s.x1 && z >= s.z0 && z <= s.z1) hs.push(s.h);
     return hs;
   }
@@ -520,23 +532,208 @@ function deskSetPro(x,z){
   box('lab east wall south',-68,6.5,28.35,.35,13,8.7,labWall,true); box('lab east wall north',-68,6.5,40.15,.35,13,9.7,labWall,true);
   box('lab east door lintel',-68,8,34,.35,10,2.6,labWall);
   box('lab west wall',-92,6.5,34,.35,13,20,labWall,true); box('lab north wall',-80,6.5,24,24,13,.35,labWall,true); box('lab south wall',-80,6.5,44,24,13,.35,labWall,true);
-  box('lab foundation band',-80,.5,34,24.4,1,20.4,0x5f707c);
+  box('lab foundation band',-80,-.3,34,24.4,.4,20.4,0x5f707c);
   doors.push(makeDoor('实验楼门',-68,32.7,1,'x'));
   box('lab ceiling',-80,13.1,34,24.5,.25,20.5,0x8799a5);
   for(const y of [3.6,7,10.4]) for(const x of [-89,-84.5,-80,-75.5,-71]) box('lab south window',x,y,44.22,1.7,1.5,.08,((Math.round(y*10)+Math.round(x*10))%2)?0x44586a:0x2e3a44);
   const labSign=makeSign('实验楼',3.4,1,'#3d4f5c','#e8f2f8'); labSign.position.set(-67.4,4.8,34); labSign.rotation.y=Math.PI/2; scene.add(labSign);
   box('lab path floor',-43,-.25,34,46,.25,3.5,0xe6dcc2);
   box('lab interior floor',-80,-.24,34,23,.25,20,0x9aa5a8);
-  for(const [x,z] of [[-86,30],[-86,38],[-74,30],[-74,38]]) { box('lab bench cabinet',x,.36,z,4.2,.72,1.1,0x5f6a70,true); box('lab bench top',x,.85,z,4.6,.1,1.4,0x8b959b); box('lab bench sink',x+1.45,.93,z,.7,.12,.5,0x3f6fb5); }
-  const reagentColors=[0x7fd4a8,0xd97b29,0x6fb7d9,0xd96a6a,0xd9c44a];
-  for(const [x,z] of [[-86,30],[-74,38]]) for(let i=0;i<5;i++) box('lab reagent bottle',x-1.45+i*.48,1.05,z,.13,.3,.13,reagentColors[i]);
-  box('lab medicine cabinet',-80,1.1,24.6,6,2.2,.6,0x4c5a63,true); box('lab medicine bottle grid',-80,1.8,24.95,5.6,1.8,.05,0x35586a);
-  box('lab fume hood',-90.5,1.2,42.5,1.8,2.4,.9,0x5a6672,true); box('lab fume hood glass',-90.5,1.5,42.02,1.5,1,.06,0x22303a);
-  box('lab blackboard',-91.7,2.1,34, .08,1.6,6,0x2f4f43); const labRules=makeSign('实验守则',1.5,.9,'#5c5340','#ffffff'); labRules.position.set(-91.7,2.1,40); labRules.rotation.y=Math.PI/2; scene.add(labRules);
+  // === 实验楼三层改造：主线任务主场地 · 恐怖悬疑（封存/标本/悬念） ===
+  const labFlicker = [];
+  function labBox(name, x, y, z, sx, sy, sz, color, F) { if (F === undefined) return box(name, x, y, z, sx, sy, sz, color); return box(name, x, y, z, sx, sy, sz, color, true, F - .6, F + 3.0); }
+  function labWallSeg(name, cx, cz, len, F, alongX = true) {
+    if (alongX) { box(name, cx, F + 1.8, cz, len, 3.6, .28, 0x9fb2bd); addColliderBounds(cx - len / 2, cx + len / 2, cz - .14, cz + .14, F - .6, F + 3.0); }
+    else { box(name, cx, F + 1.8, cz, .28, 3.6, len, 0x9fb2bd); addColliderBounds(cx - .14, cx + .14, cz - len / 2, cz + len / 2, F - .6, F + 3.0); }
+  }
+  function labDoor(label, signText, z, x, F, lockKey, lockName) {
+    roomDoor(label, z, x, F, 1);
+    const dr = doors[doors.length - 1];
+    if (lockKey) { dr.lockKey = lockKey; dr.lockName = lockName; }
+    addSign(signText, 1.5, .42, '#2c3844', '#dfe9f2', x, F + 3.12, z + (z < 34 ? .18 : -.18), z < 34 ? 0 : Math.PI);
+    box('lab door lintel', x, F + 3.27, z, DOOR_WIDTH, .65, .3, 0x9fb2bd);
+    return dr;
+  }
+  function labSeal(x, F) {
+    const s1 = box('lab seal strip', x, F + 1.6, 34.97, 2.2, .18, .04, 0xe8e3d5); s1.rotation.z = .5;
+    const s2 = box('lab seal strip', x, F + 1.6, 34.97, 2.2, .18, .04, 0xe8e3d5); s2.rotation.z = -.5;
+    addSign('封条', .8, .4, '#a33327', '#ffffff', x, F + 1.6, 34.9, Math.PI);
+  }
+  // 楼板（兼下层天花板）与三楼天花板
+  for (const F of [3.6, 7.2]) {
+    box('lab floor slab A', -78.6, F - .13, 34, 21.2, .26, 20, 0x8b979e);
+    box('lab floor slab B', -90.6, F - .13, 38.45, 2.8, .26, 11.1, 0x8b979e);
+    box('lab stair platform', -90.6, F - .13, 32.1, 2.8, .26, 1.6, 0x8b979e);
+  }
+  box('lab 3F ceiling', -80, 10.93, 34, 24.5, .25, 20.5, 0x8799a5);
+  // 西北楼梯间：双跑楼梯 ×2 层
+  function labFlight(F) {
+    for (let i = 0; i < 10; i++) {
+      const rise = .18 * (i + 1), z1 = 31.3 - .27 - .54 * i, rise2 = 1.8 + .18 * (i + 1), z2 = 25.9 + .27 + .54 * i;
+      if (F === 0) { box('lab stair r1', -91.375, rise / 2, z1, 1.25, rise, .54, 0xaaa397); box('lab stair r2', -89.825, rise2 / 2, z2, 1.25, rise2, .54, 0xaaa397); }
+      else { box('lab stair r1', -91.375, F + rise - .45, z1, 1.25, .9, .54, 0xaaa397); box('lab stair r2', -89.825, F + rise2 - .45, z2, 1.25, .9, .54, 0xaaa397); }
+    }
+    if (F === 0) box('lab stair landing', -90.6, .9, 24.95, 2.8, 1.8, 1.9, 0xb7aea0);
+    else {
+      box('lab stair landing', -90.6, 3.6, 24.95, 2.8, 3.6, 1.9, 0xb7aea0);
+      const sf1 = box('lab stair soffit', -91.375, F + .09, 28.6, 1.3, .16, 5.75, 0x9a9484); sf1.rotation.x = .322;
+      const sf2 = box('lab stair soffit', -89.825, F + 1.89, 28.6, 1.3, .16, 5.75, 0x9a9484); sf2.rotation.x = -.322;
+    }
+    const hr1 = box('lab stair rail', -90.6, F + 1.8, 28.6, .07, .1, 5.7, 0x59636b); hr1.rotation.x = .322;
+    const hr2 = box('lab stair rail', -90.6, F + 3.6, 28.6, .07, .1, 5.7, 0x59636b); hr2.rotation.x = -.322;
+    addColliderBounds(-90.78, -90.42, 25.9, 31.3, F - .6, F + 2.9);
+  }
+  labFlight(0); labFlight(3.6);
+  addSign('楼梯间', 1.3, .4, '#2c3844', '#dfe9f2', -90.6, 2.2, 31.2, 0);
+  // 楼梯间东墙 + 北排隔墙（通高视觉 + 分层碰撞）
+  box('lab tower east wall', -89.2, 5.4, 28.45, .22, 10.8, 8.9, 0x9fb2bd);
+  box('lab north partition', -80, 5.4, 28.45, .22, 10.8, 8.9, 0x9fb2bd);
+  for (const F of [0, 3.6, 7.2]) { addColliderBounds(-89.31, -89.09, 24, 32.9, F - .6, F + 3.0); addColliderBounds(-80.11, -79.89, 24, 32.9, F - .6, F + 3.0); }
+  // 南排隔墙（分层）
+  labWallSeg('lab south partition', -80, 39.55, 8.9, 0, false); labWallSeg('lab south partition', -74, 39.55, 8.9, 0, false);
+  labWallSeg('lab south partition', -80, 39.55, 8.9, 3.6, false); labWallSeg('lab south partition', -74, 39.55, 8.9, 3.6, false);
+  labWallSeg('lab south partition', -81, 39.55, 8.9, 7.2, false); labWallSeg('lab south partition', -74, 39.55, 8.9, 7.2, false);
+  // 中央走廊两侧墙（分层，带门洞）
+  function labCorrWall(z, doorsX, F) {
+    const edges = [-92, ...doorsX.flatMap(x => [x - 1.3, x + 1.3]), -68];
+    for (let i = 0; i + 1 < edges.length; i += 2) { const a = edges[i], b = edges[i + 1]; if (b - a > .05) labWallSeg('lab corridor wall', (a + b) / 2, z, b - a, F); }
+  }
+  for (const F of [0, 3.6, 7.2]) { labCorrWall(32.9, [-89.9, -84.6, -74], F); labCorrWall(35.1, F === 7.2 ? [-86.5, -77.5] : [-86, -77, -71], F); }
+  // 东墙大门洞在二三楼的封堵碰撞（视觉由原门楣板覆盖）
+  addColliderBounds(-68.2, -67.8, 32.7, 35.3, 3.0, 6.6); addColliderBounds(-68.2, -67.8, 32.7, 35.3, 6.6, 10.2);
+  // 门（带锁的门需要对应钥匙道具）
+  labDoor('实验楼楼梯间门', '楼梯间', 32.9, -89.9, 0, 'keyStair1', '楼梯间钥匙');
+  labDoor('物理实验室门', '物理实验室', 32.9, -84.6, 0);
+  labDoor('标本陈列室门', '标本陈列室', 32.9, -74, 0);
+  labDoor('化学实验室门', '化学实验室', 35.1, -86, 0);
+  labDoor('实验员值班室门', '值班室', 35.1, -77, 0);
+  labDoor('储物间门', '储物间', 35.1, -71, 0);
+  labDoor('实验楼楼梯间门2F', '楼梯间', 32.9, -89.9, 3.6);
+  labDoor('显微镜实验室门', '显微镜实验室', 32.9, -84.6, 3.6);
+  labDoor('解剖实验室门', '解剖实验室', 32.9, -74, 3.6);
+  labDoor('准备室门', '准备室', 35.1, -86, 3.6, 'keyPrep', '准备室钥匙');
+  labDoor('实验员办公室门', '办公室', 35.1, -77, 3.6);
+  labDoor('药品仪器室门', '药品仪器室', 35.1, -71, 3.6);
+  labDoor('实验楼楼梯间门3F', '楼梯间', 32.9, -89.9, 7.2, 'keyStair3', '三楼钥匙');
+  labDoor('档案室门', '档案室', 32.9, -84.6, 7.2);
+  labDoor('天文观测室门', '天文观测室', 32.9, -74, 7.2);
+  labDoor('密封药品室门', '密封药品室', 35.1, -86.5, 7.2, 'keyRecord', '实验记录里的密码');
+  labDoor('广播室门', '广播室', 35.1, -77.5, 7.2);
+  labSeal(-86, 0); labSeal(-86.5, 7.2);
+  // 三楼封死的房间：假门板（永远打不开）
+  box('lab sealed fake door', -71, 8.675, 35.1, 2.6, 2.95, .14, 0x8e5638);
+  addSign('封死的房间', 1.5, .42, '#2c3844', '#9aa7b4', -71, 10.32, 34.92, Math.PI);
+  // 走廊顶灯（闪烁）与门厅绿光
+  for (const F of [0, 3.6, 7.2]) for (const lx of [-84, -72]) {
+    box('lab corridor lamp', lx, F + 3.32, 34, 1.6, .08, .3, 0xd8e6da);
+    const L = new THREE.PointLight(0xcfe4d0, F === 7.2 ? 9 : 13, 17); L.position.set(lx, F + 2.9, 34); scene.add(L);
+    labFlicker.push({ light: L, base: F === 7.2 ? 9 : 13, seed: lx * 1.7 + F });
+  }
+  addSign('安全出口', 1.3, .4, '#0d5c2e', '#baffd0', -68.6, 2.75, 34, -Math.PI / 2);
+  const exitLight = new THREE.PointLight(0x57d977, 5, 6); exitLight.position.set(-69.5, 2.5, 34); scene.add(exitLight);
+  addSign('夜间禁止入内', 1.6, .5, '#7a1f1a', '#ffd9d0', -67.8, 1.9, 30.6, -Math.PI / 2);
+  // 准备室门缝透光（走廊侧暖光 + 门下光条）
+  box('lab prep door light strip', -86, 3.63, 34.93, 2.2, .05, .07, 0xffd9a0);
+  const prepGlow = new THREE.PointLight(0xffc37a, 5, 5); prepGlow.position.set(-86, 4.1, 34.2); scene.add(prepGlow);
   const labWarning=makeSign('闲人免进',1.6,.8,'#8a2f23','#ffffff'); labWarning.position.set(-69,1.9,36.5); labWarning.rotation.y=-Math.PI/2; scene.add(labWarning);
-  box('lab cardboard box',-89.5,.31,25.5,.62,.62,.62,0xb08954,true); box('lab cardboard box',-88.7,.25,26.4,.5,.5,.5,0xa3805e,true);
-  const labChair=box('lab fallen chair',-72,.25,29.5,.45,.5,.45,0x7a4a3a); labChair.rotation.z=.35; colliders.push({bounds:{minX:-72.35,maxX:-71.65,minZ:29.15,maxZ:29.85}});
-  const labLight=new THREE.PointLight(0xbfd4e6,18,30); labLight.position.set(-80,3.2,34); scene.add(labLight);
+  // === 实验楼三层家具与氛围 ===
+  const jarGlass = new THREE.MeshLambertMaterial({ color: 0xa8c8a0, transparent: true, opacity: .45 });
+  const jarGuts = new THREE.MeshLambertMaterial({ color: 0x4a6741 });
+  function labJar(x, y, z, r, h) {
+    const j = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 12), jarGlass); j.position.set(x, y, z); scene.add(j);
+    const g = new THREE.Mesh(new THREE.SphereGeometry(r * .62, 10, 8), jarGuts); g.position.set(x, y - h * .08, z); g.scale.y = 1.25; scene.add(g);
+  }
+  // 走廊散落纸页（三层）
+  for (const F of [0, 3.6, 7.2]) for (const [px, pz, r] of [[-88, 34.5, .4], [-79, 33.6, 1.2], [-70.5, 34.2, 2.1], [-83, 33.4, 2.8]]) { const p = box('lab scattered paper', px, F + .02, pz, .34, .012, .44, 0xd9d4c5); p.rotation.y = r; }
+  // 一楼 · 废弃物理实验室
+  box('lab physics blackboard', -84.6, 1.9, 24.3, 5.4, 1.5, .1, 0x2f4f43);
+  addSign('第三章 · 电磁感应', 2.6, .6, '#2f4f43', '#cfe0d2', -84.6, 1.95, 24.38, 0);
+  for (const [dx, dz, tip] of [[-87.5, 28, 0], [-87.5, 30.6, 0], [-82, 28, 0], [-82, 30.6, 1]]) {
+    if (tip) { const t = box('lab physics desk tipped', dx, .55, dz, 2, .75, 1.1, 0x8a6a48); t.rotation.z = 1.25; addColliderBounds(dx - 1, dx + 1, dz - .55, dz + .55, -.6, 3.0); }
+    else labBox('lab physics desk', dx, .4, dz, 2, .8, 1.1, 0x8a6a48, 0);
+  }
+  const physChair = box('lab fallen chair', -85, .22, 29.4, .45, .45, .45, 0x7a4a3a); physChair.rotation.z = .5;
+  const physLight = new THREE.PointLight(0xbfd4e6, 6, 11); physLight.position.set(-84.6, 2.9, 28.5); scene.add(physLight);
+  // 一楼 · 标本陈列室
+  for (const cx of [-77.5, -74, -70.5]) {
+    labBox('lab specimen cabinet', cx, 1.1, 24.6, 2.6, 2.2, .55, 0x4c5a63, 0);
+    for (let i = 0; i < 3; i++) labJar(cx - .8 + i * .8, 1.55, 24.6, .13, .42);
+    for (let i = 0; i < 3; i++) labJar(cx - .8 + i * .8, .62, 24.6, .11, .36);
+  }
+  labBox('lab big jar cabinet', -71.5, .5, 26.9, 1.7, 1, .8, 0x5f6a70, 0);
+  labJar(-71.5, 1.5, 26.9, .34, .95);
+  addSign('标本目录', 1.4, .5, '#37474f', '#cfe0d2', -74, 2.5, 24.42, 0);
+  const specLight = new THREE.PointLight(0x9fd4a8, 8, 12); specLight.position.set(-74, 2.6, 28.5); scene.add(specLight);
+  // 一楼 · 封存的化学实验室
+  const reagentColors = [0x7fd4a8, 0xd97b29, 0x6fb7d9, 0xd96a6a, 0xd9c44a];
+  for (const [bx, bz] of [[-88.5, 38.5], [-83.5, 38.5], [-88.5, 41.8], [-83.5, 41.8]]) {
+    labBox('lab bench cabinet', bx, .36, bz, 4.2, .72, 1.1, 0x5f6a70, 0);
+    box('lab bench top', bx, .85, bz, 4.6, .1, 1.4, 0x8b959b);
+    box('lab bench sink', bx + 1.45, .93, bz, .7, .12, .5, 0x3f6fb5);
+  }
+  for (const [bx, bz] of [[-88.5, 38.5], [-83.5, 41.8]]) for (let i = 0; i < 5; i++) box('lab reagent bottle', bx - 1.45 + i * .48, 1.05, bz, .13, .3, .13, reagentColors[i]);
+  labBox('lab fume hood', -90.9, 1.2, 37, .9, 2.4, 1.8, 0x5a6672, 0);
+  box('lab fume hood glass', -90.42, 1.5, 37, .06, 1, 1.5, 0x22303a);
+  const labRules = makeSign('实验守则', 1.5, .9, '#5c5340', '#ffffff'); labRules.position.set(-79.85, 2.1, 40); labRules.rotation.y = -Math.PI / 2; scene.add(labRules);
+  // 一楼 · 实验员值班室
+  labBox('lab duty desk', -77, .4, 42.8, 1.5, .8, .7, 0x8a6a48, 0);
+  box('lab duty chair', -77, .25, 41.7, .45, .5, .45, 0x7a4a3a);
+  addSign('值班表', 1.1, .55, '#e8e3d5', '#5c5340', -77, 2, 35.3, Math.PI);
+  const cup = new THREE.Mesh(new THREE.CylinderGeometry(.05, .04, .11, 10), mat(0xd8d2c0)); cup.position.set(-76.6, .86, 42.7); scene.add(cup);
+  // 一楼 · 储物间
+  labBox('lab storage shelf', -68.6, 1, 39.5, .6, 2, 4.4, 0x6a7683, 0);
+  for (const [bx, bz, bs, r] of [[-72.5, 37, .62, .2], [-71.6, 37.6, .5, .7], [-72.2, 42.6, .68, .1], [-70.8, 42.2, .45, .9]]) { const b = labBox('lab cardboard box', bx, bs / 2, bz, bs, bs, bs, 0xb08954, 0); b.rotation.y = r; }
+  // 二楼 · 显微镜实验室
+  for (const [tx, mxs] of [[-87, [-88, -87, -86]], [-82.2, [-83.2, -82.2, -81.2]]]) {
+    labBox('lab micro table', tx, 4.0, 27.5, 3.4, .8, 1, 0x7a8894, 3.6);
+    for (const mx of mxs) {
+      box('lab microscope base', mx, 4.44, 27.5, .3, .07, .42, 0x2e3440);
+      box('lab microscope arm', mx, 4.68, 27.38, .08, .42, .08, 0x2e3440);
+      const tube = new THREE.Mesh(new THREE.CylinderGeometry(.035, .035, .34, 8), mat(0x454f5c)); tube.position.set(mx, 4.78, 27.52); tube.rotation.x = .5; scene.add(tube);
+    }
+  }
+  addSign('显微镜实验室', 1.8, .5, '#37474f', '#cfe0d2', -84.6, 5.6, 24.42, 0);
+  // 二楼 · 解剖实验室
+  labBox('lab anatomy table', -74, 4.05, 28.5, 2.4, .9, 1.1, 0x9aa5ad, 3.6);
+  box('lab anatomy sheet', -74, 4.56, 28.5, 2.2, .1, .95, 0xe3e6e8);
+  box('lab anatomy tray', -72.4, 4.3, 28.5, .5, .06, .35, 0xc8ced4);
+  labBox('lab anatomy cabinet', -69, 4.7, 25.2, 1.6, 2.2, .6, 0x5f6a70, 3.6);
+  const anatLight = new THREE.PointLight(0xa8c4de, 7, 12); anatLight.position.set(-74, 6.4, 28.5); scene.add(anatLight);
+  // 二楼 · 上锁的准备室（灯亮着）
+  labBox('lab prep cabinet', -91.2, 4.7, 38, .7, 2.2, 4.6, 0x5f6a70, 3.6);
+  labBox('lab prep desk', -88, 4.0, 42.8, 1.7, .8, .7, 0x8a6a48, 3.6);
+  box('lab prep binder', -88.3, 4.48, 42.7, .32, .09, .24, 0xa33327);
+  addSign('事故记录', .9, .4, '#7a1f1a', '#ffd9d0', -86, 5.4, 35.3, Math.PI);
+  const prepLight = new THREE.PointLight(0xffd9a0, 10, 10); prepLight.position.set(-86, 6.3, 39.5); scene.add(prepLight);
+  // 二楼 · 实验员办公室
+  labBox('lab office desk', -77, 4.0, 42.6, 1.6, .8, .75, 0x8a6a48, 3.6);
+  box('lab office chair', -77, 3.85, 41.5, .45, .5, .45, 0x7a4a3a);
+  const logSign = makeSign('日志本', .55, .38, '#5c5340', '#ffffff'); logSign.position.set(-77.3, 4.42, 42.55); logSign.rotation.x = -Math.PI / 2; scene.add(logSign);
+  labBox('lab office cabinet', -74.6, 4.7, 43.4, 1.4, 2.2, .55, 0x4c5a63, 3.6);
+  // 二楼 · 药品仪器室
+  labBox('lab med cabinet', -68.6, 4.7, 39.5, .6, 2.2, 5.6, 0x4c5a63, 3.6);
+  box('lab med bottle grid', -68.28, 5.4, 39.5, .05, 1.8, 5.2, 0x35586a);
+  for (const sz of [37.5, 41.5]) { labBox('lab instrument shelf', -73.55, 4.5, sz, .5, 1.8, 2.2, 0x6a7683, 3.6); box('lab instrument box', -73.55, 5.15, sz - .5, .34, .35, .5, 0x8a94a6); box('lab instrument box', -73.55, 5.15, sz + .5, .3, .3, .4, 0x77828e); }
+  // 三楼 · 档案室
+  for (const cx of [-87.2, -84.4, -81.6]) labBox('lab archive cabinet', cx, 8.25, 25.2, 2.4, 2.1, .6, 0x5a6068, 7.2);
+  for (const cx of [-87.6, -81.2]) labBox('lab archive cabinet', cx, 8.25, 29.5, 2.4, 2.1, .6, 0x646a72, 7.2);
+  addSign('档案室', 1.4, .5, '#37474f', '#e8e3d5', -84.6, 9.2, 24.42, 0);
+  // 三楼 · 天文观测室
+  const scope = new THREE.Mesh(new THREE.CylinderGeometry(.09, .11, 1.35, 12), mat(0x3a4a5c)); scope.position.set(-74, 8.75, 28); scope.rotation.z = 1.05; scene.add(scope);
+  box('lab scope tripod', -74, 7.75, 28, .5, 1.1, .5, 0x2e3440);
+  labBox('lab astro table', -70.5, 7.6, 30.5, 1.5, .8, .8, 0x8a6a48, 7.2);
+  addSign('星图', 1.6, 1, '#1d2a44', '#cfe0ff', -68.4, 9, 28, -Math.PI / 2);
+  // 三楼 · 广播室
+  labBox('lab broadcast desk', -77.5, 7.6, 42.5, 2.1, .8, .9, 0x6a5a48, 7.2);
+  const mic = new THREE.Mesh(new THREE.CylinderGeometry(.02, .02, .42, 6), mat(0x2e3440)); mic.position.set(-77.8, 8.25, 42.4); mic.rotation.z = .35; scene.add(mic);
+  const micHead = new THREE.Mesh(new THREE.SphereGeometry(.06, 8, 8), mat(0x2e3440)); micHead.position.set(-77.72, 8.46, 42.4); scene.add(micHead);
+  box('lab tape box', -76.9, 8.06, 42.6, .34, .08, .24, 0x8a2f23);
+  addSign('广播室', 1.4, .5, '#37474f', '#e8e3d5', -77.5, 9.2, 35.3, Math.PI);
+  // 三楼 · 密封药品室（终幕）
+  labBox('lab meds cabinet', -86.5, 7.75, 41.8, 3.2, 1.1, .9, 0x4c5a63, 7.2);
+  for (const wz of [36.5, 39, 41.5]) { labBox('lab meds shelf', -91.3, 8.1, wz, .8, 1.8, 1.6, 0x5f6a70, 7.2); for (let i = 0; i < 3; i++) box('lab meds bottle', -91.3, 8.6, wz - .45 + i * .45, .13, .3, .13, reagentColors[i % 5]); }
+  box('lab meds bottle grid', -84.9, 8.3, 41.75, .05, .8, 2.6, 0x35586a);
+  const medsLight = new THREE.PointLight(0xd98a8a, 6, 10); medsLight.position.set(-86.5, 9.9, 39.5); scene.add(medsLight);
 
   // 南缘东段三栋学生宿舍。
   const dormWall=0xd8c6a8;
@@ -564,7 +761,7 @@ function deskSetPro(x,z){
   for(const [x,label] of [[64.5,'102'],[70.5,'103'],[76.5,'104'],[82.5,'105']]) { box('dorm2 fake door',x,1.3,107.8,1.6,2.6,.08,0x8e5638); const d=makeSign(label,.8,.45,'#37474f','#ffffff');d.position.set(x,2.3,107.72);d.rotation.y=Math.PI;scene.add(d); }
   for(const [x,label] of [[91.5,'102'],[96,'103'],[100.5,'104']]) { box('dorm3 fake door',x,1.3,107.8,1.6,2.6,.08,0x8e5638); const d=makeSign(label,.8,.45,'#37474f','#ffffff');d.position.set(x,2.3,107.72);d.rotation.y=Math.PI;scene.add(d); }
   dormShell('dorm2',73,102,26,73,[63,66,69,77,80,83]);dormShell('dorm3',96,102,16,96,[90.5,93,99.5,102]);
-  const fakeDoors = [{x:-8,z:6.55,floor:0,msg:'储物间锁着'},{x:9.65,z:-10.1,floor:3.6,msg:'天台门锁着'},{x:47,z:107.8},{x:51,z:107.8},{x:64.5,z:107.8},{x:70.5,z:107.8},{x:76.5,z:107.8},{x:82.5,z:107.8},{x:91.5,z:107.8},{x:96,z:107.8},{x:100.5,z:107.8}];
+  const fakeDoors = [{x:-8,z:6.55,floor:0,msg:'储物间锁着'},{x:9.65,z:-10.1,floor:3.6,msg:'天台门锁着'},{x:47,z:107.8},{x:51,z:107.8},{x:64.5,z:107.8},{x:70.5,z:107.8},{x:76.5,z:107.8},{x:82.5,z:107.8},{x:91.5,z:107.8},{x:96,z:107.8},{x:100.5,z:107.8},{x:-71,z:35.35,floor:7.2,msg:'门被从里面顶住了，推不动。'}];
   const FAKE_DOOR_RADIUS = 2.0;
   function nearFakeDoor() { for (const d of fakeDoors) if (Math.abs(playerGroundY-(d.floor||0))<1.9 && Math.hypot(camera.position.x - d.x, camera.position.z - d.z) < FAKE_DOOR_RADIUS) return d; return null; }
 
@@ -1228,15 +1425,15 @@ function deskSetPro(x,z){
   const inventory = [];
   let boostUntil = 0;
   const pickups = [];
-  function nearestPickup() { let best = null, bd = 1.8; for (const p of pickups) { if (!p.group.visible) continue; const d = Math.hypot(camera.position.x - p.x, camera.position.z - p.z); if (d < bd) { bd = d; best = p; } } return best; }
-  function addPickup(id, icon, name, x, z, color) {
+  function nearestPickup() { let best = null, bd = 1.8; for (const p of pickups) { if (!p.group.visible) continue; if (Math.abs(playerGroundY - (p.floorY || 0)) > 1.9) continue; const d = Math.hypot(camera.position.x - p.x, camera.position.z - p.z); if (d < bd) { bd = d; best = p; } } return best; }
+  function addPickup(id, icon, name, x, z, color, floorY = 0) {
     const group = new THREE.Group();
     const cube = new THREE.Mesh(new THREE.BoxGeometry(.36, .36, .36), new THREE.MeshLambertMaterial({ color, emissive: color, emissiveIntensity: .35 }));
     cube.position.y = .55; group.add(cube);
     const sign = makeSign(icon + ' ' + name, 1.15, .34, '#22303a', '#ffffff'); sign.position.y = 1.15; group.add(sign);
     const sign2 = makeSign(icon + ' ' + name, 1.15, .34, '#22303a', '#ffffff'); sign2.position.y = 1.15; sign2.rotation.y = Math.PI; group.add(sign2);
-    group.position.set(x, 0, z); scene.add(group);
-    pickups.push({ id, icon, name, x, z, group, cube });
+    group.position.set(x, floorY, z); scene.add(group);
+    pickups.push({ id, icon, name, x, z, group, cube, floorY });
   }
   addPickup('soda', '🥤', '汽水', 4, 32, 0xd94f3d);
   addPickup('coffee', '☕', '咖啡', 61.5, 39, 0x8a5a2b);
@@ -1244,12 +1441,20 @@ function deskSetPro(x,z){
   addPickup('ball', '🏀', '篮球', -52.5, 37.5, 0xd97b29);
   addPickup('phones', '🎧', '耳机', 28, 58, 0x5a4a8a);
   addPickup('umbrella', '☂️', '雨伞', 41, 97.5, 0x4d7ab0);
+  // 实验楼主线道具（钥匙链，不进装备栏）
+  addPickup('keyStair1', '🗝️', '楼梯间钥匙', -72.3, 26.2, 0xd9c44a, 0); pickups[pickups.length - 1].quest = true;
+  addPickup('keyPrep', '🗝️', '准备室钥匙', -77, 41.4, 0xd9c44a, 3.6); pickups[pickups.length - 1].quest = true;
+  addPickup('keyStair3', '🗝️', '三楼钥匙', -88, 41.5, 0xd9c44a, 3.6); pickups[pickups.length - 1].quest = true;
+  addPickup('keyRecord', '📋', '当年的实验记录', -84.4, 28.4, 0x8a94a6, 7.2); pickups[pickups.length - 1].quest = true;
+  addPickup('pageZero', '📄', '第零页', -86.5, 40.2, 0xf0ead6, 7.2); pickups[pickups.length - 1].quest = true;
   function updateHotbar() {
     const hb = document.getElementById('hotbar');
     hb.innerHTML = '';
     for (let i = 0; i < 6; i++) { const d = document.createElement('div'); d.className = 'slot' + (inventory[i] ? '' : ' empty'); d.innerHTML = '<b>' + (i + 1) + '</b>' + (inventory[i] ? inventory[i].icon : ''); d.title = inventory[i] ? inventory[i].name : ''; hb.appendChild(d); }
   }
+  const questKeys = new Set();
   function collectPickup(p) {
+    if (p.quest) { questKeys.add(p.id); p.group.visible = false; showToast(p.id === 'pageZero' ? '📄 找到了「第零页」——实验楼主线完成！' : '🔑 拿到：' + p.icon + ' ' + p.name); return; }
     if (inventory.length >= 6) { showToast('装备栏满了，先用掉一些吧'); return; }
     inventory.push({ id: p.id, icon: p.icon, name: p.name });
     p.group.visible = false;
@@ -1327,8 +1532,8 @@ function deskSetPro(x,z){
     if (e.code === 'Space') e.preventDefault();
     if (/^Digit[1-6]$/.test(e.code) && document.pointerLockElement === renderer.domElement) useItem(parseInt(e.code.slice(5)) - 1);
     if (e.code === 'KeyE' && document.pointerLockElement === renderer.domElement && nearbyDoor) {
-      nearbyDoor.open = !nearbyDoor.open;
-      nearbyDoor.passable=false;
+      if (nearbyDoor.lockKey && !questKeys.has(nearbyDoor.lockKey)) showToast('🔒 锁着——需要「' + nearbyDoor.lockName + '」');
+      else { if (nearbyDoor.lockKey) { nearbyDoor.lockKey = null; showToast('🔓 用「' + nearbyDoor.lockName + '」打开了'); } nearbyDoor.open = !nearbyDoor.open; nearbyDoor.passable = false; }
     } else if (e.code === 'KeyE' && document.pointerLockElement === renderer.domElement && nearFakeDoor()) { const fd=nearFakeDoor(); showToast(fd.msg || '不是你的宿舍'); }
     if (e.code === 'KeyF' && document.pointerLockElement === renderer.domElement) {
       if(gameState.inStrangeSpace){if(Math.hypot(camera.position.x-120,camera.position.z-5)<1.6)leaveStrangeSpace();return;}
@@ -1625,6 +1830,7 @@ function deskSetPro(x,z){
     updatePlayerAvatar(dt);
     for (const p of pickups) if (p.group.visible) { p.cube.rotation.y += dt * 2; p.cube.position.y = .55 + Math.sin(now * .003 + p.x) * .07; }
     drawMinimap();
+    for (const fl of labFlicker) fl.light.intensity = fl.base * (Math.sin(now * .017 + fl.seed * 7) > .86 ? .1 : .82 + .18 * Math.sin(now * .09 + fl.seed));
     if(saveEnabled&&!gameState.finished&&now-lastSaveCheck>=500){lastSaveCheck=now;try{const snapshot=JSON.stringify(makeSaveSnapshot());if(snapshot!==lastSavedSnapshot)saveGame();}catch(_){}}
     camera.rotation.set(pitch,yaw,0,'YXZ');
     renderFrame(now);
