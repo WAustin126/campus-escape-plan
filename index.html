@@ -51,8 +51,8 @@
 </style>
 </head>
 <body>
-<div id="overlay" class="prestart"><h1>校园逃跑计划</h1><div id="startButtons"></div><p>WASD 移动 · 鼠标视角</p></div>
-<div id="hud"><div id="stats"></div><div id="floorBadge">1F</div><div id="skipBadge">⚠ 逃课中</div><div id="alertBar"><div id="alertFill"></div></div><div id="suspicionRow" style="display:none">怀疑值</div><div id="suspicionBar"><div id="suspicionFill"></div></div><div id="questRow" style="display:none"></div><div id="escapeHint" style="display:none">学分已满，去校门离开校园！</div><div id="help">WASD 移动 · 鼠标视角 · E 开门/关门 · F 对话/打篮球/交互</div></div>
+<div id="overlay" class="prestart"><h1>校园逃跑计划</h1><div id="startButtons"></div><p>WASD 移动 · 鼠标视角 · 空格 跳跃 · Shift 奔跑</p></div>
+<div id="hud"><div id="stats"></div><div id="floorBadge">1F</div><div id="skipBadge">⚠ 逃课中</div><div id="alertBar"><div id="alertFill"></div></div><div id="suspicionRow" style="display:none">怀疑值</div><div id="suspicionBar"><div id="suspicionFill"></div></div><div id="questRow" style="display:none"></div><div id="escapeHint" style="display:none">学分已满，去校门离开校园！</div><div id="help">WASD 移动 · 鼠标视角 · E 开门/关门 · F 对话/打篮球/交互 · 空格 跳跃 · Shift 奔跑</div></div>
 <div id="crosshair"></div><div id="prompt">按 E 开门</div><div id="dialog"><img id="dialogPortrait" alt=""><span id="dialogName">严老师</span><span id="dialogText"></span><div id="chatBox" style="display:none"><div id="chatMeta"></div><input id="chatInput" type="text" maxlength="120" placeholder="输入你想说的话…"><button id="chatSend" type="button">发送</button><span id="chatHint">Esc 关闭</span></div></div>
 <div id="toast"></div><div id="summary"></div><div id="fade"></div>
 <div id="basketballOverlay"><button id="basketballClose" type="button">✕ 关闭</button><iframe title="篮球小游戏" src="about:blank"></iframe></div>
@@ -102,6 +102,8 @@
     return hs;
   }
   function groundHeightAt(x,z,curY) { const hs=surfaceHeightsAt(x,z); if(!hs.length)return 0; let best=null; for(const h of hs)if(h<=curY+.65&&(best===null||h>best))best=h; return best===null?curY:best; }
+  let vy = 0, jumpOff = 0;
+  function jumpStep(dt) { if (keys.has('Space') && jumpOff <= 0) vy = 5; if (vy !== 0 || jumpOff > 0) { vy -= 13 * dt; jumpOff += vy * dt; if (jumpOff <= 0) { jumpOff = 0; vy = 0; } } return jumpOff; }
 
   const playerRadius = .34;
   const forward = new THREE.Vector3();
@@ -228,6 +230,7 @@
   // 1F 中区边界与房间隔墙。
   wall('1F north boundary west',-8.925,3,-11.2,2.15,6,.28);addColliderBounds(-10,-7.85,-11.34,-11.06,B2.y0,B2.y1);box('stair door lintel west',-6.55,4.48,-11.2,2.6,3.05,.28,0xf0c987);wall('1F north boundary east',9.075,3,-11.2,1.85,6,.28);addColliderBounds(8.15,10,-11.34,-11.06,B2.y0,B2.y1);box('stair door lintel east',6.85,4.48,-11.2,2.6,3.05,.28,0xf0c987);
   roomDoor('楼梯间西北门',-11.2,-6.55,0);roomDoor('楼梯间东北门',-11.2,6.85,0);
+  addSign('楼梯间',1.6,.48,'#3d5a73','#ffffff',-6.55,2.6,-11.02);addSign('楼梯间',1.6,.48,'#3d5a73','#ffffff',6.85,2.6,-11.02);addSign('楼梯间',1.6,.48,'#3d5a73','#ffffff',-6.55,2.6,-11.38);addSign('楼梯间',1.6,.48,'#3d5a73','#ffffff',6.85,2.6,-11.38);
   doors.push(makeDoor('楼梯间西门',-10,-11.3,1,'x',0));
   wall('west stair west wall',-10,3,-3.45,.28,6,10.3);wall('east stair east wall',10,3,-4.7,.28,6,13);
   // 玩家教室南北门与侧墙。
@@ -247,7 +250,7 @@
     box(side+' stair landing', (px1+px2)/2,.9,-4.4,px2-px1,1.8,1.6,0xb7aea0);
     for(let i=0;i<10;i++){const rise=1.8+.18*(i+1),z=-3.6-.54*(i+.5);box(side+' stair run2',(rx1+rx2)/2,(rise+1.8)/2,z,rx2-rx1,rise-1.8,.54,0xaaa397);}
     box(side+' 2F landing',(west?-7.95:8.1),3.475,-10.1,west?4.1:3.8, .25,2.2,0xb7aea0);
-    const line=west?-8:8.15;addColliderBounds(line-.12,line+.12,-10.2,-5.2,B1.y0,2.6);addColliderBounds(line-.12,line+.12,-9,-5.2,1.7,5.6);
+    const line=west?-8:8.15;addColliderBounds(line+(west?-.02:-.22),line+(west?.22:.02),-9.2,-5.2,B1.y0,2.6);addColliderBounds(line-.12,line+.12,-9,-5.2,1.7,5.6);
     if(west)addColliderBounds(-9.9,-8.1,-9.1,-8.85,3,5.6);else addColliderBounds(8.25,9.95,-9.1,-8.85,3,5.6);
     for(const x of (west?[-9.8,-8.2]:[8.35,9.85])){const rail=box(side+' stair handrail',x,1.55,-7.9,.08,.12,5.4,0x59636b);rail.rotation.x=west?-.322:.322;for(const z of [-10.3,-9.1,-7.9,-6.7,-5.5])box(side+' stair baluster',x,1.1+(z+10.6)*.32,z,.06,.85,.06,0x59636b);}
     // 2F arrival room door and landing barrier gate.
@@ -621,7 +624,7 @@ function deskSetPro(x,z){
     if (opts.longHair) { const lh = new THREE.Mesh(bevelGeo(.46, .55, .10, .045), pmat(opts.hair)); lh.name = 'person long hair'; lh.position.set(0, 1.47, -.215); g.add(lh); }
     return { group: g, armL, armR, legL, legR };
   }
-  const playerAvatar=blockPerson({skin:0xe8b98d,hair:0x2b2320,torso:0x2f6fd0,pants:0x2b3a55,accent:0xffffff,backpack:0xd0483a,shoes:0xf0f0f0});scene.add(playerAvatar.group);
+  const playerAvatar=blockPerson({skin:0xe8b98d,hair:0x2b2320,torso:0x2f6fd0,pants:0x2b3a55,accent:0xffffff,backpack:0xd0483a,shoes:0xf0f0f0});scene.add(playerAvatar.group);playerAvatar.group.visible=false;
   let avatarX=0,avatarZ=5,walkPhase=0,avatarAmp=0;
   function updatePlayerAvatar(dt){const x=camera.position.x,z=camera.position.z,mx=x-avatarX,mz=z-avatarZ,moved=Math.hypot(mx,mz);avatarX=x;avatarZ=z;playerAvatar.group.position.set(x,playerGroundY,z);walkPhase+=moved*2.4;avatarAmp+=( (moved>.01?.6:0)-avatarAmp)*(1-Math.exp(-12*dt));playerAvatar.armL.rotation.x=Math.sin(walkPhase)*avatarAmp;playerAvatar.armR.rotation.x=-playerAvatar.armL.rotation.x;playerAvatar.legL.rotation.x=-playerAvatar.armL.rotation.x;playerAvatar.legR.rotation.x=playerAvatar.armL.rotation.x;let target=moved>.01?Math.atan2(mx,mz):yaw+Math.PI,delta=Math.atan2(Math.sin(target-playerAvatar.group.rotation.y),Math.cos(target-playerAvatar.group.rotation.y));playerAvatar.group.rotation.y+=delta*(1-Math.exp(-12*dt));}
   // 严老师只沿教室中央过道与走廊中线巡逻，不参与玩家碰撞。
@@ -1201,6 +1204,7 @@ function deskSetPro(x,z){
   document.addEventListener('keydown', e => {
     if(gameState.chatOpen){if(e.code==='Escape'){e.preventDefault();closeChat();}else if(e.code==='Enter'&&document.activeElement!==chatInput){e.preventDefault();sendChat();}return;}
     keys.add(e.code);
+    if (e.code === 'Space') e.preventDefault();
     if (e.code === 'KeyE' && document.pointerLockElement === renderer.domElement && nearbyDoor) {
       nearbyDoor.open = !nearbyDoor.open;
       nearbyDoor.passable=false;
@@ -1273,8 +1277,8 @@ function deskSetPro(x,z){
     updateDoors(dt);
     if (gameState.minigameOpen) { updateSchedule(dt); updateTeacher(dt); return; }
     if(gameState.chatOpen){if(currentChat&&Math.hypot(camera.position.x-currentChat.npc.group.position.x,camera.position.z-currentChat.npc.group.position.z)>CONFIG.talkDistance+1.5)closeChat();updateTeacher(dt);return;}
-    if(gameState.inStrangeSpace){updateStrangeSpace(dt);if(!gameState.inStrangeSpace){updateHUD();return;}const s=4.6*dt;forward.set(-Math.sin(yaw),0,-Math.cos(yaw));right.set(Math.cos(yaw),0,-Math.sin(yaw));move.set(0,0,0);if(keys.has('KeyW'))move.add(forward);if(keys.has('KeyS'))move.sub(forward);if(keys.has('KeyD'))move.add(right);if(keys.has('KeyA'))move.sub(right);if(move.lengthSq()){move.normalize().multiplyScalar(s);camera.position.x+=move.x;camera.position.z+=move.z;}camera.position.x=Math.max(110.6,Math.min(129.4,camera.position.x));camera.position.z=Math.max(-8.4,Math.min(8.4,camera.position.z));updateHUD();return;}
-    const speed = 4.6 * dt;
+    if(gameState.inStrangeSpace){updateStrangeSpace(dt);if(!gameState.inStrangeSpace){updateHUD();return;}const s=((keys.has('ShiftLeft')||keys.has('ShiftRight'))?7.4:4.6)*dt;forward.set(-Math.sin(yaw),0,-Math.cos(yaw));right.set(Math.cos(yaw),0,-Math.sin(yaw));move.set(0,0,0);if(keys.has('KeyW'))move.add(forward);if(keys.has('KeyS'))move.sub(forward);if(keys.has('KeyD'))move.add(right);if(keys.has('KeyA'))move.sub(right);if(move.lengthSq()){move.normalize().multiplyScalar(s);camera.position.x+=move.x;camera.position.z+=move.z;}camera.position.x=Math.max(110.6,Math.min(129.4,camera.position.x));camera.position.z=Math.max(-8.4,Math.min(8.4,camera.position.z));camera.position.y=1.6+jumpStep(dt);updateHUD();return;}
+    const speed = ((keys.has('ShiftLeft') || keys.has('ShiftRight')) ? 7.4 : 4.6) * dt;
     const prevX = camera.position.x, prevZ = camera.position.z;
     if (collides(prevX, prevZ)) {
       let escaped = false;
@@ -1306,7 +1310,7 @@ function deskSetPro(x,z){
         if (!collides(camera.position.x, candidateZ)) camera.position.z = candidateZ;
       }
     }
-    if (!gameState.inStrangeSpace) { const g=groundHeightAt(camera.position.x,camera.position.z,camera.position.y-1.6); playerGroundY=g; camera.position.y=g+1.6; } else playerGroundY=0;
+    if (!gameState.inStrangeSpace) { const g=groundHeightAt(camera.position.x,camera.position.z,camera.position.y-1.6); playerGroundY=g; camera.position.y=g+1.6+jumpStep(dt); } else playerGroundY=0;
     nearbyDoor = null;
     for (const door of doors) {
       if(Math.abs(playerGroundY-door.floorY)>1.9) continue;
@@ -1480,9 +1484,8 @@ function deskSetPro(x,z){
     update(dt);
     updatePlayerAvatar(dt);
     if(saveEnabled&&!gameState.finished&&now-lastSaveCheck>=500){lastSaveCheck=now;try{const snapshot=JSON.stringify(makeSaveSnapshot());if(snapshot!==lastSavedSnapshot)saveGame();}catch(_){}}
-    const savedPos=placeCamera();
+    camera.rotation.set(pitch,yaw,0,'YXZ');
     renderFrame(now);
-    camera.position.copy(savedPos);camera.rotation.set(pitch,yaw,0,'YXZ');
   }
   animate(last);
   window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
