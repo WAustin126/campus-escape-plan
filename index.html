@@ -56,8 +56,8 @@
 </style>
 </head>
 <body>
-<div id="overlay" class="prestart"><h1>校园逃跑计划</h1><div id="startButtons"></div><p>WASD 移动 · 鼠标视角 · 空格 跳跃 · Shift 奔跑</p><p>版本：11/17 晚 · 篮球场进体育馆版</p></div>
-<div id="hud"><div id="stats"></div><div id="floorBadge">1F</div><div id="skipBadge">⚠ 逃课中</div><div id="alertBar"><div id="alertFill"></div></div><div id="suspicionRow" style="display:none">怀疑值</div><div id="suspicionBar"><div id="suspicionFill"></div></div><div id="questRow" style="display:none"></div><div id="escapeHint" style="display:none">学分已满，去校门离开校园！</div><div id="help">WASD 移动 · 鼠标视角 · E 开门/关门 · F 对话/打篮球/交互 · 空格 跳跃 · Shift 奔跑 · 楼梯间在北走廊两端 · 版本 11/17晚·篮球场进体育馆版</div></div>
+<div id="overlay" class="prestart"><h1>校园逃跑计划</h1><div id="startButtons"></div><p>WASD 移动 · 鼠标视角 · 空格 跳跃 · Shift 奔跑</p><p>版本：11/17 晚 · 流畅优化版</p></div>
+<div id="hud"><div id="stats"></div><div id="floorBadge">1F</div><div id="skipBadge">⚠ 逃课中</div><div id="alertBar"><div id="alertFill"></div></div><div id="suspicionRow" style="display:none">怀疑值</div><div id="suspicionBar"><div id="suspicionFill"></div></div><div id="questRow" style="display:none"></div><div id="escapeHint" style="display:none">学分已满，去校门离开校园！</div><div id="help">WASD 移动 · 鼠标视角 · E 开门/关门 · F 对话/打篮球/交互 · 空格 跳跃 · Shift 奔跑 · 楼梯间在北走廊两端 · 版本 11/17晚·流畅优化版</div></div>
 <div id="crosshair"></div><div id="prompt">按 E 开门</div><canvas id="minimap" width="196" height="196"></canvas><div id="hotbar"></div><div id="dialog"><img id="dialogPortrait" alt=""><span id="dialogName">严老师</span><span id="dialogText"></span><div id="chatBox" style="display:none"><div id="chatMeta"></div><input id="chatInput" type="text" maxlength="120" placeholder="输入你想说的话…"><button id="chatSend" type="button">发送</button><span id="chatHint">Esc 关闭</span></div></div>
 <div id="toast"></div><div id="summary"></div><div id="fade"></div>
 <div id="basketballOverlay"><button id="basketballClose" type="button">✕ 关闭</button><iframe title="篮球小游戏" src="about:blank"></iframe></div>
@@ -145,7 +145,7 @@
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.1;
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
   renderer.setSize(innerWidth, innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   document.body.appendChild(renderer.domElement);
@@ -536,7 +536,7 @@ function deskSetPro(x,z){
   for(const x of [74,88]) for(let i=0;i<3;i++){const z=[31,39,47][i];box('library bookshelf',x,1.25,z,.7,2.5,3.4,0x7a5a3a,true);for(const side of [-1,1])for(let level=0;level<3;level++)box('library book spines',x+side*.39,.65+level*.65,z,.05,.48,3,bookColors[(i+level)%bookColors.length]);}
   const readingLampMat=new THREE.MeshLambertMaterial({color:0xe8f4ff,emissive:0xcfe4ff,emissiveIntensity:.85});
   for(const z of [31,47]){box('library reading table',81,.78,z,1.3,.09,4.4,0x8a6a48);for(const dz of [-1.9,1.9])box('library reading table leg',81,.38,z+dz,.12,.75,1.1,0x6e5638);for(const dz of [-1.4,0,1.4]){const lamp=new THREE.Mesh(new THREE.BoxGeometry(.16,.22,.16),readingLampMat);lamp.name='library reading lamp';lamp.position.set(81,.94,z+dz);scene.add(lamp);}colliders.push({bounds:{minX:80.2,maxX:81.8,minZ:z-2.25,maxZ:z+2.25}});}
-  const libraryLight=new THREE.PointLight(0xd6e6ff,26,38); libraryLight.position.set(81,3.6,39); scene.add(libraryLight); tree(56,28); tree(56,50);
+  const libraryLight=new THREE.PointLight(0xd6e6ff,26,26); libraryLight.position.set(81,3.6,39); scene.add(libraryLight); tree(56,28); tree(56,50);
   for(const [x,z] of [[77,35],[85,35],[77,43],[85,43]])aoPad(x,z,3.7,2.1,0);
 
   const canteenWall=0x6b655c;
@@ -553,7 +553,7 @@ function deskSetPro(x,z){
   box('canteen serving counter',95.2,.55,73,3.4,1.1,18,0xb08954,true);box('canteen counter top',95.2,1.16,73,3.8,.1,18.6,0x8a6a42);const canteenGuard=new THREE.Mesh(new THREE.BoxGeometry(.06,.85,18),canteenGlassMat);canteenGuard.name='canteen glass guard';canteenGuard.position.set(93.55,1.8,73);scene.add(canteenGuard);
   for(const z of [66,73,80]){const sign=makeSign('今日菜单',1.7,.85,'#37474f','#ffecb3');sign.position.set(97.75,2.7,z);sign.rotation.y=-Math.PI/2;scene.add(sign);}
   for(const [x,z] of [[76,66],[76,73],[76,80],[86,66],[86,73],[86,80]]){box('canteen dining table',x,.78,z,1.7,.08,1,0xd9b380);box('canteen table leg',x,.38,z,.12,.75,.12,0x8a6a42);for(const side of [-1,1])box('canteen chair',x+side*1.05,.25,z,.45,.5,.45,0x7a9e7e);colliders.push({bounds:{minX:x-1.3,maxX:x+1.3,minZ:z-.55,maxZ:z+.55}});aoPad(x,z,2.9,1.5,0);}
-  const canteenLampMat=new THREE.MeshLambertMaterial({color:0xffe2b0,emissive:0xffbe78,emissiveIntensity:1});for(const [x,z] of [[80,66],[88,66],[80,80],[88,80]]){box('canteen lamp rod',x,3.6,z,.04,1.2,.04,0x555049);const lamp=new THREE.Mesh(new THREE.SphereGeometry(.16),canteenLampMat);lamp.name='canteen lamp';lamp.position.set(x,2.95,z);scene.add(lamp);}for(const z of [66,80]){const light=new THREE.PointLight(0xffd9a0,30,34);light.position.set(84,3.4,z);scene.add(light);}
+  const canteenLampMat=new THREE.MeshLambertMaterial({color:0xffe2b0,emissive:0xffbe78,emissiveIntensity:1});for(const [x,z] of [[80,66],[88,66],[80,80],[88,80]]){box('canteen lamp rod',x,3.6,z,.04,1.2,.04,0x555049);const lamp=new THREE.Mesh(new THREE.SphereGeometry(.16),canteenLampMat);lamp.name='canteen lamp';lamp.position.set(x,2.95,z);scene.add(lamp);}for(const z of [66,80]){const light=new THREE.PointLight(0xffd9a0,30,26);light.position.set(84,3.4,z);scene.add(light);}
 
   // 西侧实验楼。
   const labWall=0x9fb2bd;
@@ -772,7 +772,7 @@ function deskSetPro(x,z){
     doors.push(makeDoor(label==='dorm'?'宿舍门':label==='dorm2'?'宿舍2门':'宿舍3门',102,doorX-1.3,1));
     const sign=makeSign(label==='dorm'?'学生宿舍 · 1 号楼':`宿舍 ${label==='dorm2'?'2':'3'} 号楼`,label==='dorm'?4.4:3.6,1,'#6e5136','#fff3d6');sign.position.set(doorX,5.8,101.4);sign.rotation.y=Math.PI;scene.add(sign);
     for(const y of [3.2,6.4,9.6,12.8,16])for(const x of windowXs)box(`${label} north window`,x,y,101.78,1.1,1.3,.08,((Math.round(y*10)+x)%2)?0xffd98a:0x5a6a76);
-    if(withLobby){box('dorm lobby partition',43,2.4,108,26,4.8,.3,0xc4b294,true);box('dorm partition upper',43,11.7,108,26,13.8,.3,0xc4b294);box('dorm lobby floor',43,-.24,105,25,.25,5.5,0xd9c9a3);box('dorm reception desk',33,.38,105,2.4,.76,.8,0x8a6a48,true);box('dorm lobby sofa',52,.28,104.5,1.9,.56,.85,0x7a9e7e,true);box('dorm lobby sofa',36,.28,104.5,1.9,.56,.85,0x7a9e7e,true);const board=makeSign('公告栏',1.9,1.05,'#37474f','#ffffff');board.position.set(48,2,107.8);board.rotation.y=Math.PI;scene.add(board);box('dorm parcel lockers',54.5,.95,105,.5,1.9,4,0x4d7ab0,true);const light=new THREE.PointLight(0xffe6bb,22,26);light.position.set(43,3,105);scene.add(light);}
+    if(withLobby){box('dorm lobby partition',43,2.4,108,26,4.8,.3,0xc4b294,true);box('dorm partition upper',43,11.7,108,26,13.8,.3,0xc4b294);box('dorm lobby floor',43,-.24,105,25,.25,5.5,0xd9c9a3);box('dorm reception desk',33,.38,105,2.4,.76,.8,0x8a6a48,true);box('dorm lobby sofa',52,.28,104.5,1.9,.56,.85,0x7a9e7e,true);box('dorm lobby sofa',36,.28,104.5,1.9,.56,.85,0x7a9e7e,true);const board=makeSign('公告栏',1.9,1.05,'#37474f','#ffffff');board.position.set(48,2,107.8);board.rotation.y=Math.PI;scene.add(board);box('dorm parcel lockers',54.5,.95,105,.5,1.9,4,0x4d7ab0,true);const light=new THREE.PointLight(0xffe6bb,22,20);light.position.set(43,3,105);scene.add(light);}
     box(`${label} path floor`,doorX,-.25,99,3.5,.25,6,0xe6dcc2);
   }
   dormShell('dorm',43,102,26,43,[33,36,39,47,50,53],true);
@@ -784,8 +784,8 @@ function deskSetPro(x,z){
   box('dorm sample room bed',31.2,.28,106.5,1.1,.5,2.2,0x8fb2c9,true);box('dorm sample room pillow',31.2,.6,105.6,.7,.14,.5,0xffffff);box('dorm sample room blanket',31.2,.58,107.4,1.05,.1,1.2,0xd97b29);box('dorm sample room desk',31,.72,103.2,1.5,.75,.65,0xa8895e,true);box('dorm sample room chair',31.9,.25,103.2,.45,.5,.45,0x4d7ab0,true); const lamp=new THREE.Mesh(new THREE.BoxGeometry(.14,.3,.14),new THREE.MeshLambertMaterial({color:0xfff3cf,emissive:0xffca7a,emissiveIntensity:.9}));lamp.position.set(30.6,1.05,103.2);scene.add(lamp);box('dorm sample room wardrobe',36.4,1,107.3,.7,2,1.1,0x7a5a3a,true);box('dorm sample room rug',33.5,-.2,105,2.4,.06,2,0xc0684f);
   box('dorm canopy',43,3.3,100.6,4.4,.14,2.6,0x8a94a0);for(const x of [41.3,44.7]){box('dorm canopy post',x,1.65,99.6,.09,3.3,.09,0x6e7a84);colliders.push({bounds:{minX:x-.14,maxX:x+.14,minZ:99.46,maxZ:99.74}});}
   // 宿舍 2/3 号楼简易门厅（隔墙、地板、宿管桌、沙发、公告栏、暖光）。
-  box('dorm2 lobby partition',73,2.4,108,26,4.8,.3,0xc4b294,true); box('dorm2 lobby floor',73,-.24,105,25,.25,5.5,0xd9c9a3); box('dorm2 reception desk',63,.38,105,2.4,.76,.8,0x8a6a48,true); box('dorm2 lobby sofa',82,.28,104.5,1.9,.56,.85,0x7a9e7e,true); const dorm2Board=makeSign('公告栏',1.9,1.05,'#37474f','#ffffff'); dorm2Board.position.set(78,2,107.8); dorm2Board.rotation.y=Math.PI; scene.add(dorm2Board); const dorm2Light=new THREE.PointLight(0xffe6bb,22,26); dorm2Light.position.set(73,3,105); scene.add(dorm2Light);
-  box('dorm3 lobby partition',96,2.4,108,16,4.8,.3,0xc4b294,true); box('dorm3 lobby floor',96,-.24,105,15,.25,5.5,0xd9c9a3); box('dorm3 reception desk',90,.38,105,2.4,.76,.8,0x8a6a48,true); box('dorm3 lobby sofa',101,.28,104.5,1.9,.56,.85,0x7a9e7e,true); const dorm3Board=makeSign('公告栏',1.9,1.05,'#37474f','#ffffff'); dorm3Board.position.set(99,2,107.8); dorm3Board.rotation.y=Math.PI; scene.add(dorm3Board); const dorm3Light=new THREE.PointLight(0xffe6bb,22,26); dorm3Light.position.set(96,3,105); scene.add(dorm3Light);
+  box('dorm2 lobby partition',73,2.4,108,26,4.8,.3,0xc4b294,true); box('dorm2 lobby floor',73,-.24,105,25,.25,5.5,0xd9c9a3); box('dorm2 reception desk',63,.38,105,2.4,.76,.8,0x8a6a48,true); box('dorm2 lobby sofa',82,.28,104.5,1.9,.56,.85,0x7a9e7e,true); const dorm2Board=makeSign('公告栏',1.9,1.05,'#37474f','#ffffff'); dorm2Board.position.set(78,2,107.8); dorm2Board.rotation.y=Math.PI; scene.add(dorm2Board); const dorm2Light=new THREE.PointLight(0xffe6bb,22,20); dorm2Light.position.set(73,3,105); scene.add(dorm2Light);
+  box('dorm3 lobby partition',96,2.4,108,16,4.8,.3,0xc4b294,true); box('dorm3 lobby floor',96,-.24,105,15,.25,5.5,0xd9c9a3); box('dorm3 reception desk',90,.38,105,2.4,.76,.8,0x8a6a48,true); box('dorm3 lobby sofa',101,.28,104.5,1.9,.56,.85,0x7a9e7e,true); const dorm3Board=makeSign('公告栏',1.9,1.05,'#37474f','#ffffff'); dorm3Board.position.set(99,2,107.8); dorm3Board.rotation.y=Math.PI; scene.add(dorm3Board); const dorm3Light=new THREE.PointLight(0xffe6bb,22,20); dorm3Light.position.set(96,3,105); scene.add(dorm3Light);
   for(const [x,label] of [[64.5,'102'],[70.5,'103'],[76.5,'104'],[82.5,'105']]) { box('dorm2 fake door',x,1.3,107.8,1.6,2.6,.08,0x8e5638); const d=makeSign(label,.8,.45,'#37474f','#ffffff');d.position.set(x,2.3,107.72);d.rotation.y=Math.PI;scene.add(d); }
   for(const [x,label] of [[91.5,'102'],[96,'103'],[100.5,'104']]) { box('dorm3 fake door',x,1.3,107.8,1.6,2.6,.08,0x8e5638); const d=makeSign(label,.8,.45,'#37474f','#ffffff');d.position.set(x,2.3,107.72);d.rotation.y=Math.PI;scene.add(d); }
   dormShell('dorm2',73,102,26,73,[63,66,69,77,80,83]);dormShell('dorm3',96,102,16,96,[90.5,93,99.5,102]);
@@ -809,7 +809,7 @@ function deskSetPro(x,z){
   for(const [x,dir] of [[-29.5,1],[-8.5,-1]]) { box('gym hoop pole',x,1.7,106,.2,3.4,.2,0x4a5560,true); box('gym backboard',x-dir*.55,2.9,106,.08,1.05,1.45,0xe8e4da); const rim=new THREE.Mesh(new THREE.TorusGeometry(.24,.03,8,20),mat(0xd95f29)); rim.name='gym hoop rim'; rim.rotation.x=Math.PI/2; rim.position.set(x-dir*.8,2.62,106); scene.add(rim); }
   box('gym bench',-19,.23,115.5,10,.46,.5,0x7a9e7e,true); box('gym bench',-19,.23,114.2,10,.46,.5,0x7a9e7e,true);
   const gymCourtSign=makeSign('篮球场',3,.9,'#3d5a73','#ffffff'); gymCourtSign.position.set(-19,3.6,117.78); gymCourtSign.rotation.y=Math.PI; scene.add(gymCourtSign);
-  for(const x of [-26,-12]) { const gymLight=new THREE.PointLight(0xfff2dd,34,48); gymLight.position.set(x,6,106); scene.add(gymLight); }
+  for(const x of [-26,-12]) { const gymLight=new THREE.PointLight(0xfff2dd,34,30); gymLight.position.set(x,6,106); scene.add(gymLight); }
 
   // 西侧湖泊、跨湖小桥与凉亭。
   box('lake water',-50,-.16,112,24,.18,16,0x6fb7d9);
@@ -961,7 +961,7 @@ function deskSetPro(x,z){
   for(const y of [3.4,5.4,9.8,13])for(const x of [32,36,42,46])box('admin window',x,y,45.22,1.6,1.4,.08,0x5a6a76);doors.push(makeDoor('行政楼门',28,36.7,1,'x'));addedSign('行政楼',3.4,1,'#5c5340','#ffffff',27.4,4.6,38,-Math.PI/2);box('admin path floor',23,-.25,38,10,.25,3.5,0xe6dcc2);box('admin interior floor',39,-.24,36.5,21,.25,16,0xd9d2c2);
   box('admin reception desk',31.5,.45,38,.8,.9,3.2,0x8a6a48,true);for(const x of [36,39.5,43,46.5]){box('admin workstation',x,.75,41,1.5,.7,.7,0xa8895e,true);addChair(x,39.8);box('admin computer',x,1.05,40.76,.5,.35,.06,0x33404a);}
   box('admin work area divider',39,.6,39.2,13,1.2,.18,0xb8b0a0,true);box('counselor partition north',44,1.5,33,.22,3,5,0xe2dccb,true);box('counselor partition south',44,1.5,40.5,.22,3,5,0xe2dccb,true);box('counselor desk',47.5,.75,30.5,.8,.75,1.8,0x8a6a48,true);addChair(47.5,32.2);box('counselor filing cabinet',49.4,1,36,.6,2,1.2,0x7a8894,true);addedSign('辅导员办公室',1.9,.8,'#37474f','#ffffff',43.85,2.1,36.3,-Math.PI/2);
-  box('meeting partition north',36,1.5,33,.22,3,5,0xe2dccb,true);box('meeting partition south',36,1.5,40.5,.22,3,5,0xe2dccb,true);box('admin meeting table',32,.72,30.5,1.4,.75,3.6,0x6e5638,true);for(const [x,z] of [[30.8,29],[33.2,29],[30.8,32],[33.2,32],[32,28.5],[32,32.5]])addChair(x,z,0x657d91);interiorLight(0xfff1d6,24,30,39,3.4,36);
+  box('meeting partition north',36,1.5,33,.22,3,5,0xe2dccb,true);box('meeting partition south',36,1.5,40.5,.22,3,5,0xe2dccb,true);box('admin meeting table',32,.72,30.5,1.4,.75,3.6,0x6e5638,true);for(const [x,z] of [[30.8,29],[33.2,29],[30.8,32],[33.2,32],[32,28.5],[32,32.5]])addChair(x,z,0x657d91);interiorLight(0xfff1d6,24,22,39,3.4,36);
 
   // 会堂
   const hw=0xa85f4a;
@@ -972,11 +972,11 @@ function deskSetPro(x,z){
   box('hall stage',16,.3,103,20,.6,6.5,0x7a4a30,true); box('hall backdrop',16,3,106.2,19,6,.25,0x8e2432); box('hall curtain west',6.8,3,103,.25,6,6,0x8e2432); box('hall curtain east',25.2,3,103,.25,6,6,0x8e2432);
   addedSign('表彰大会',3.4,.8,'#8e2432','#ffe9b0',16,5.6,99.6);
   for(const z of [90,92,94,96,98]) for(let i=0;i<14;i++) if(i!==7) box('hall auditorium seat',8+i*1.05,.45,z,.5,.9,.5,0x9e3d34,true);
-  interiorLight(0xffe2b0,30,36,16,5,96);
+  interiorLight(0xffe2b0,30,24,16,5,96);
 
   // 大学生活动中心
   const actw=0xd9a45e;box('activity west wall south',30,5,53.35,.35,10,6.7,actw,true);box('activity west wall north',30,5,62.65,.35,10,6.7,actw,true);box('activity entrance lintel',30,6.5,58,.35,7,2.6,actw);box('activity east wall',46,5,58,.35,10,16,actw,true);box('activity north wall',38,5,50,16,10,.35,actw,true);box('activity south wall',38,5,66,16,10,.35,actw,true);box('activity ceiling',38,10.1,58,16.5,.25,16.5,0xc2924e);doors.push(makeDoor('活动中心门',30,56.7,1,'x'));addedSign('大学生活动中心',4.6,1,'#7a4416','#ffffff',29.4,5.4,58,-Math.PI/2);box('activity path floor',24,-.25,58,12,.25,3.5,0xe6dcc2);box('activity interior floor',38,-.24,58,15,.25,15,0xe3cf9f);addedSign('社团公告栏',2.2,1.1,'#37474f','#ffecb3',38,2,50.25);
-  for(const z of [54,60]){box('activity ping pong table',41,.75,z,2.2,.75,1.2,0x2e5f8a,true);box('activity ping pong table edge',41,.79,z,2.24,.04,1.24,0xf5f2ea);}box('activity club partition west',33,1.5,62,6,3,.22,0xead9b8,true);box('activity club partition east',42.5,1.5,62,7,3,.22,0xead9b8,true);box('activity club table',41,.72,64,1.6,.75,1.6,0xa8895e,true);for(const [x,z] of [[39.5,64],[42.5,64],[41,62.5],[41,65.5]])addChair(x,z,0x8a6a48);addedSign('社团活动室',1.8,.8,'#7a4416','#ffffff',37.3,2.1,61.85,Math.PI);box('activity lockers',45.4,1,54,.6,2,3.4,0x7a8894,true);interiorLight(0xffe9c4,22,26,38,3.2,58);
+  for(const z of [54,60]){box('activity ping pong table',41,.75,z,2.2,.75,1.2,0x2e5f8a,true);box('activity ping pong table edge',41,.79,z,2.24,.04,1.24,0xf5f2ea);}box('activity club partition west',33,1.5,62,6,3,.22,0xead9b8,true);box('activity club partition east',42.5,1.5,62,7,3,.22,0xead9b8,true);box('activity club table',41,.72,64,1.6,.75,1.6,0xa8895e,true);for(const [x,z] of [[39.5,64],[42.5,64],[41,62.5],[41,65.5]])addChair(x,z,0x8a6a48);addedSign('社团活动室',1.8,.8,'#7a4416','#ffffff',37.3,2.1,61.85,Math.PI);box('activity lockers',45.4,1,54,.6,2,3.4,0x7a8894,true);interiorLight(0xffe9c4,22,20,38,3.2,58);
 
   // 校医院（东侧新址）
   const cw=0xf0f2ee;
@@ -989,7 +989,7 @@ function deskSetPro(x,z){
   box('clinic exam partition north',72,1.5,88.2,.22,3,4.4,0xe8efe9,true); box('clinic exam partition south',72,1.5,96.4,.22,3,7.2,0xe8efe9,true);
   box('clinic desk',75,.75,89,1.6,.75,.8,0xa8895e,true); addChair(76.2,89);
   for(const z of [95,98]) { box('clinic bed frame',75,.5,z,1,.5,2.2,0xdde3e6,true); box('clinic pillow',75,.62,z-.75,.6,.15,.4,0xffffff); box('clinic blanket',75,.6,z+.25,.95,.12,1.3,0x8fc7a8); }
-  box('clinic medicine cabinet',77.4,1.1,93,.55,2.2,5,0xb9c9be,true); box('clinic medicine grid',77.05,1.8,93,.05,1.8,4.6,0x6fae8f); interiorLight(0xf2fbf4,22,26,68,3.2,93);
+  box('clinic medicine cabinet',77.4,1.1,93,.55,2.2,5,0xb9c9be,true); box('clinic medicine grid',77.05,1.8,93,.05,1.8,4.6,0x6fae8f); interiorLight(0xf2fbf4,22,20,68,3.2,93);
 
   // 校园超市（北侧新址）
   const mw=0x9aa3ab;
@@ -1000,7 +1000,7 @@ function deskSetPro(x,z){
   doors.push(makeDoor('超市门',52,75.7,1,'x')); const marketSign=makeSign('校园超市',4.2,1.05,'#1f5fa8','#ffffff'); marketSign.position.set(51.3,4.9,77); marketSign.rotation.y=-Math.PI/2; scene.add(marketSign);
   box('market interior floor',60,-.24,77,15,.25,13,0xd8dde2);
   for(let i=0;i<3;i++) { const x=[56,60,64][i]; box('market shelf',x,.85,77,.8,1.7,9,0x8a939c,true); for(const y of [.55,1.05,1.55]) box('market merchandise',x,y,77,.86,.34,8.6,[0xd95f29,0x53a06a,0x3f6fb5][i]); const tag=makeSign(['零食','饮料','日用品'][i],1,.5,'#37474f','#ffecb3'); tag.position.set(x,2,72.2); tag.rotation.y=Math.PI; scene.add(tag); }
-  box('market checkout',54.5,.5,81.5,.8,1,2.6,0x5b7a99,true); box('market cooler',67.4,1,77,.7,2,6,0xbcd2e2,true); interiorLight(0xffffff,24,28,60,3.4,77);
+  box('market checkout',54.5,.5,81.5,.8,1,2.6,0x5b7a99,true); box('market cooler',67.4,1,77,.7,2,6,0xbcd2e2,true); interiorLight(0xffffff,24,22,60,3.4,77);
 
   // 快递驿站（服务楼南侧空地，与宿舍楼拉开距离）
   const qw=0xdfe7ee;
@@ -1009,7 +1009,7 @@ function deskSetPro(x,z){
   doors.push(makeDoor('驿站门',30,88.7,1,'x')); const courierSign=makeSign('快递驿站',3.6,.95,'#1453a8','#ffffff'); courierSign.position.set(29.3,4,90); courierSign.rotation.y=-Math.PI/2; scene.add(courierSign);
   box('courier path floor',26,-.25,90,8,.25,3,0xe6dcc2); box('courier interior floor',37,-.24,88,13,.25,11,0xd3dbe2);
   for(const x of [33,37.5,42]) { box('courier parcel shelf',x,.95,86,.7,1.9,4.2,0x7a8894,true); for(let row=0;row<3;row++) for(let side of [-1,1]) box('courier parcel',x+side*.36,.5+row*.58,85.1+(row%2)*1.2,.6,.38,.8,(row+side>1)?0xd97b29:0xb08954); }
-  box('courier pickup counter',32,.5,90,.8,1,4.4,0x2e7cd6,true); box('courier packing table',41,.45,92.5,3,.9,.7,0x8a939c,true); interiorLight(0xf4f9ff,18,22,37,3,88);
+  box('courier pickup counter',32,.5,90,.8,1,4.4,0x2e7cd6,true); box('courier packing table',41,.45,92.5,3,.9,.7,0x8a939c,true); interiorLight(0xf4f9ff,18,18,37,3,88);
 
   // 南侧七间校园便民店及 ATM
   const serviceNames=['浴室','开水房','打印文具','理发店','药店','书店','咖啡吧'];
@@ -1049,7 +1049,7 @@ function deskSetPro(x,z){
   box('logistics path floor',-80,-.25,119.9,8,.25,3,0xe0d3ae); box('logistics interior floor',-91,-.24,118,13,.25,11,0xc9cfc0);
   box('logistics office desk',-88,.75,114,1.7,.75,.8,0x8a6a48,true); addChair(-89.2,114);
   for(const z of [115,120.5]) { box('logistics warehouse shelf',-97.4,1,z,.7,2,3.6,0x7a8894,true); for(const y of [.55,1.15,1.75]) box('logistics cartons',-97.08,y,z,.08,.32,3.2,0xb08954); }
-  box('logistics tool cabinet',-94,1,123.4,2.4,2,.6,0xb08954,true); interiorLight(0xf6ffec,16,20,-91,3,118);
+  box('logistics tool cabinet',-94,1,123.4,2.4,2,.6,0xb08954,true); interiorLight(0xf6ffec,16,16,-91,3,118);
 
   // 南校门、校外道路与公交站。
   box('south gate pillar west',-6.8,2.75,125,1.1,5.5,1.1,0x8a8378,true); box('south gate pillar east',6.8,2.75,125,1.1,5.5,1.1,0x8a8378,true);
@@ -1795,7 +1795,7 @@ function deskSetPro(x,z){
     let pos=head.clone().addScaledVector(delta,limit);const hs=surfaceHeightsAt(want.x,want.z),fl=hs.filter(h=>h<=want.y+.65).reduce((a,h)=>Math.max(a,h),0);pos.y=Math.max(pos.y,fl+.3);camera.position.copy(pos);camera.lookAt(head.x,head.y+.05,head.z);return savedPos;
   }
   // ===== 画质第5步：后期处理（手写管线：泛光+暗角+胶片颗粒+暖调分级；按P键切换档位，帧率低自动降级） =====
-  const postFX = { level: 2, auto: true, ema: 60, lowT: 0, highT: 0, lastT: 0, msaa: 4, stage: 'full' };
+  const postFX = { level: 2, auto: true, ema: 60, lowT: 0, highT: 0, lastT: 0, msaa: 2, scale: 0.8, stage: 'full' };
   window.__postFX = postFX; window.__renderer = renderer;
   const fsCam = new THREE.Camera();
   const fsScene = new THREE.Scene();
@@ -1816,6 +1816,7 @@ function deskSetPro(x,z){
     rtB = rtA.clone();
   }
   function fsPass(mat, target) { fsMesh.material = mat; renderer.setRenderTarget(target); renderer.render(fsScene, fsCam); }
+  const _dbSize = new THREE.Vector2(); const _texel = new THREE.Vector2();
   function renderFrame(now) {
     if (postFX.lastT) { const inst = 1000 / Math.max(1, now - postFX.lastT); postFX.ema += (inst - postFX.ema) * .05; }
     postFX.lastT = now;
@@ -1825,8 +1826,9 @@ function deskSetPro(x,z){
       else { postFX.lowT = 0; if (postFX.ema <= 57) postFX.highT = 0; }
     }
     if (postFX.level === 0) { renderer.render(scene, camera); return; }
-    const size = renderer.getDrawingBufferSize(new THREE.Vector2());
-    if (!rtScene || rtScene.width !== size.x || rtScene.height !== size.y) buildRTs(size.x, size.y);
+    const size = renderer.getDrawingBufferSize(_dbSize);
+    const rw = Math.max(2, Math.floor(size.x * postFX.scale)), rh = Math.max(2, Math.floor(size.y * postFX.scale));
+    if (!rtScene || rtScene.width !== rw || rtScene.height !== rh) buildRTs(rw, rh);
     renderer.setRenderTarget(rtScene); renderer.render(scene, camera);
     if (postFX.stage === 'scene') {
       matComp.uniforms.tSrc.value = rtScene.texture; matComp.uniforms.tBloom.value = rtScene.texture;
@@ -1834,7 +1836,7 @@ function deskSetPro(x,z){
       fsPass(matComp, null); renderer.setRenderTarget(null); return;
     }
     matBright.uniforms.tSrc.value = rtScene.texture; fsPass(matBright, rtA);
-    const texel = new THREE.Vector2(1 / rtA.width, 1 / rtA.height);
+    const texel = _texel.set(1 / rtA.width, 1 / rtA.height);
     const iters = postFX.level === 2 ? 2 : 1;
     for (let i = 0; i < iters; i++) {
       matBlur.uniforms.tSrc.value = rtA.texture; matBlur.uniforms.uDir.value.set(texel.x, 0); fsPass(matBlur, rtB);
