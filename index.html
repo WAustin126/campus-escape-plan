@@ -56,8 +56,8 @@
 </style>
 </head>
 <body>
-<div id="overlay" class="prestart"><h1>校园逃跑计划</h1><div id="startButtons"></div><p>WASD 移动 · 鼠标视角 · 空格 跳跃 · Shift 奔跑</p><p>版本：11/17 凌晨 · 穿墙修复版</p></div>
-<div id="hud"><div id="stats"></div><div id="floorBadge">1F</div><div id="skipBadge">⚠ 逃课中</div><div id="alertBar"><div id="alertFill"></div></div><div id="suspicionRow" style="display:none">怀疑值</div><div id="suspicionBar"><div id="suspicionFill"></div></div><div id="questRow" style="display:none"></div><div id="escapeHint" style="display:none">学分已满，去校门离开校园！</div><div id="help">WASD 移动 · 鼠标视角 · E 开门/关门 · F 对话/打篮球/交互 · 空格 跳跃 · Shift 奔跑 · 楼梯间在北走廊两端 · 版本 11/17凌晨·穿墙修复版</div></div>
+<div id="overlay" class="prestart"><h1>校园逃跑计划</h1><div id="startButtons"></div><p>WASD 移动 · 鼠标视角 · 空格 跳跃 · Shift 奔跑</p><p>版本：11/17 晚 · 画质升级试点版</p></div>
+<div id="hud"><div id="stats"></div><div id="floorBadge">1F</div><div id="skipBadge">⚠ 逃课中</div><div id="alertBar"><div id="alertFill"></div></div><div id="suspicionRow" style="display:none">怀疑值</div><div id="suspicionBar"><div id="suspicionFill"></div></div><div id="questRow" style="display:none"></div><div id="escapeHint" style="display:none">学分已满，去校门离开校园！</div><div id="help">WASD 移动 · 鼠标视角 · E 开门/关门 · F 对话/打篮球/交互 · 空格 跳跃 · Shift 奔跑 · 楼梯间在北走廊两端 · 版本 11/17晚·画质升级试点版</div></div>
 <div id="crosshair"></div><div id="prompt">按 E 开门</div><canvas id="minimap" width="196" height="196"></canvas><div id="hotbar"></div><div id="dialog"><img id="dialogPortrait" alt=""><span id="dialogName">严老师</span><span id="dialogText"></span><div id="chatBox" style="display:none"><div id="chatMeta"></div><input id="chatInput" type="text" maxlength="120" placeholder="输入你想说的话…"><button id="chatSend" type="button">发送</button><span id="chatHint">Esc 关闭</span></div></div>
 <div id="toast"></div><div id="summary"></div><div id="fade"></div>
 <div id="basketballOverlay"><button id="basketballClose" type="button">✕ 关闭</button><iframe title="篮球小游戏" src="about:blank"></iframe></div>
@@ -154,9 +154,29 @@
   const sun = new THREE.DirectionalLight(0xffe3b8, 2.2);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -28; sun.shadow.camera.right = 35; sun.shadow.camera.top = 32; sun.shadow.camera.bottom = -24; sun.shadow.camera.near = 10; sun.shadow.camera.far = 85;
-  sun.shadow.bias = -0.0005;
+  sun.shadow.camera.left = -21; sun.shadow.camera.right = 23; sun.shadow.camera.top = 25; sun.shadow.camera.bottom = -19; sun.shadow.camera.near = 8; sun.shadow.camera.far = 80;
+  sun.shadow.bias = -0.0004; sun.shadow.normalBias = .03;
   sun.position.set(-16, 36, 32); sun.target.position.set(0, 0, 0); scene.add(sun, sun.target);
+
+  // 画质试点（玩家教室）：程序化环境反射，给 PBR 材质提供 IBL 环境光；只赋给玩家教室材质，不动全局光照。
+  let pbrEnvTex = null;
+  try {
+    const envCanvas = document.createElement('canvas'); envCanvas.width = 512; envCanvas.height = 256;
+    const eg = envCanvas.getContext('2d');
+    const grad = eg.createLinearGradient(0, 0, 0, 256);
+    grad.addColorStop(0, '#aebfd2'); grad.addColorStop(.48, '#e8e2d2'); grad.addColorStop(.55, '#f7ead0'); grad.addColorStop(1, '#6f6154');
+    eg.fillStyle = grad; eg.fillRect(0, 0, 512, 256);
+    eg.fillStyle = 'rgba(255,244,214,.95)'; eg.fillRect(330, 52, 130, 92);
+    eg.fillStyle = 'rgba(210,222,235,.5)'; eg.fillRect(40, 40, 90, 60);
+    const envTex = new THREE.CanvasTexture(envCanvas);
+    envTex.mapping = THREE.EquirectangularReflectionMapping; envTex.colorSpace = THREE.SRGBColorSpace;
+    if (typeof THREE.PMREMGenerator === 'function') {
+      const pmrem = new THREE.PMREMGenerator(renderer);
+      pbrEnvTex = pmrem.fromEquirectangular(envTex).texture;
+      pmrem.dispose();
+    } else pbrEnvTex = envTex;
+  } catch (_) { pbrEnvTex = null; }
+  function applyPbrEnv(material, intensity) { if (pbrEnvTex && material) { material.envMap = pbrEnvTex; material.envMapIntensity = intensity; material.needsUpdate = true; } }
 
   const materials = {};
   const mat = (color) => materials[color] || (materials[color] = new THREE.MeshLambertMaterial({ color }));
@@ -325,7 +345,11 @@
   const proBox=(name,x,y,z,sx,sy,sz,material,rx=0,ry=0,rz=0)=>{const m=box(name,x,y,z,sx,sy,sz,0xffffff);m.material=material;m.rotation.set(rx,ry,rz);return m;};
   const proCylinder=(name,x,y,z,r1,r2,h,material,segments=10)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,segments),material);m.name=name;m.position.set(x,y,z);scene.add(m);return m;};
   function deskSet(x,z,y=0,band=B1,name='desk'){box(name+' top',x,y+1.45,z,1.35,.16,.72,0xd59a55);for(const dx of [-.55,.55])for(const dz of [-.27,.27])box(name+' leg',x+dx,y+.72,z+dz,.1,1.35,.1,0x8f603a);box(name+' chair seat',x,y+.76,z+.82,.68,.14,.55,0x4d9ab0);box(name+' chair back',x,y+1.2,z+1.08,.68,.82,.1,0x4d9ab0);addColliderBounds(x-.72,x+.72,z-.4,z+1.15,band.y0,band.y1);}
-  const classDeskMat=pbrMat('real-deskwood',1,1,.38,.8),classDrawerMat=pbrMat('real-deskwood',1,1,.45,.8,0xa8895e),classFloorMat=pbrMat('real-floor',3.6,6,.6,.6),classBoardMat=pbrMat('real-blackboard',2.4,1,.9,.5);
+  const classDeskMat=pbrMat('real-deskwood',1,1,.38,.8),classDrawerMat=pbrMat('real-deskwood',1,1,.45,.8,0xa8895e),classFloorMat=pbrMat('real-floor',3.6,6,.6,.6),classBoardMat=pbrMat('real-blackboard',2.4,1,.62,.5);
+  const classMetalMat=new THREE.MeshStandardMaterial({color:0x9aa0a6,roughness:.34,metalness:.85});
+  const classPodiumMat=pbrMat('real-deskwood',1,1,.5,.6,0xcf9a63);
+  const classWallMat=new THREE.MeshStandardMaterial({color:0xf0c987,roughness:.92,metalness:0});
+  applyPbrEnv(classDeskMat,.55);applyPbrEnv(classDrawerMat,.5);applyPbrEnv(classFloorMat,.5);applyPbrEnv(classBoardMat,.35);applyPbrEnv(classMetalMat,.9);applyPbrEnv(classPodiumMat,.5);applyPbrEnv(classWallMat,.25);
   // 玩家教室家具倒角：只替换几何体（外形尺寸不变、不新增网格），棱边法线在相邻面之间过渡，呈圆角高光。
   const bevelGeoCache = {};
   function bevelGeo(sx, sy, sz, r) {
@@ -354,10 +378,10 @@ function deskSetPro(x,z){
     bevel(proBox('pro desk top',x,1.47,z,1.5,.07,.8,classDeskMat),.016);
     bevel(proBox('pro desk drawer',x,1.16,z-.02,1.05,.5,.55,mat(0x2e2a26)),.02);
     bevel(proBox('pro desk drawer front',x,1.16,z-.33,1.05,.5,.04,classDrawerMat),.012);
-    proBox('pro desk handle',x,1.16,z-.37,.18,.03,.03,metalMat);
-    for(const dx of [-.62,.62])for(const dz of [-.28,.28])bevel(proBox('pro desk leg',x+dx,.72,z+dz,.06,1.44,.06,metalMat),.012);
+    proBox('pro desk handle',x,1.16,z-.37,.18,.03,.03,classMetalMat);
+    for(const dx of [-.62,.62])for(const dz of [-.28,.28])bevel(proBox('pro desk leg',x+dx,.72,z+dz,.06,1.44,.06,classMetalMat),.012);
     bevel(proBox('pro chair seat',x,.78,z+.8,.62,.06,.55,classDeskMat),.016);bevel(proBox('pro chair back',x,1.22,z+1.07,.62,.6,.06,classDeskMat),.016);
-    for(const dx of [-.24,.24])for(const dz of [-.2,.2])bevel(proBox('pro chair leg',x+dx,.375,z+.8+dz,.05,.75,.05,metalMat),.01);
+    for(const dx of [-.24,.24])for(const dz of [-.2,.2])bevel(proBox('pro chair leg',x+dx,.375,z+.8+dz,.05,.75,.05,classMetalMat),.01);
     const i=deskSetPro.index++;if(i%2===0)proBox('pro book',x-.25,1.53,z,.34,.05,.24,mat([0x7a4a3a,0x3a5a7a,0x4a7a4a,0x8a7a3a,0x5a4a7a][i%5]));else if(i%4===1)proCylinder('pro cup',x+.4,1.57,z+.1,.05,.045,.12,mat(Math.floor(i/4)%2===0?0xd8d8d8:0x7ab0d8));
     aoPad(x,z+.35,2.0,2.0,0);addColliderBounds(x-.72, x+.72, z-.4, z+1.15, B1.y0, B1.y1);
   }deskSetPro.index=0;
@@ -390,7 +414,7 @@ function deskSetPro(x,z){
   // A/C 的三乘三课桌、板书、窗帘与静态吊扇。
   for(const [label,x0,x1,floor,band] of [['A',2.4,10,0,B1],['C',2.4,10,3.6,B2]]){for(let row=0;row<3;row++)for(let col=0;col<3;col++)deskSet(x0+1.35+col*2.15,-21.1+row*2.05,floor,band,label+' classroom desk');box(label+' classroom blackboard',(x0+x1)/2,floor+2.65,-22.82,x1-x0-1.2,1.7,.12,0x176d4b);box(label+' curtain left',x0+.35,floor+2.1,-22.55,.12,3.8,1.1,0x7a9e7e);box(label+' curtain right',x1-.35,floor+2.1,-22.55,.12,3.8,1.1,0x7a9e7e);const fan=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,.12,10),mat(0x59636b));fan.name=label+' static ceiling fan';fan.position.set((x0+x1)/2,floor+5.75,-19);scene.add(fan);}
   for(const [label,x0,x1,floor,band] of [['A',2.4,10,0,B1],['C',2.4,10,3.6,B2]]){box(label+' podium',(x0+x1)/2,floor+.6,-22,1.4,1.2,.8,0xc47a42);addColliderBounds((x0+x1)/2-.7,(x0+x1)/2+.7,-22.4,-21.6,band.y0,band.y1);}
-  proBox('pro blackboard',.15,3.25,-10.94,7.2,2.2,.14,classBoardMat);proBox('pro class floor',.15,0,-2.2,12.1,.012,18,classFloorMat);box('board frame top',.15,4.39,-10.82,7.5,.12,.2,0xd7a94f);box('board frame bottom',.15,2.11,-10.82,7.5,.12,.2,0xd7a94f);bevel(box('podium',0,.65,-9.2,2.1,1.3,1.1,0xc47a42),.03);addColliderBounds(-1.05,1.05,-9.75,-8.65,B1.y0,B1.y1);
+  proBox('pro blackboard',.15,3.25,-10.94,7.2,2.2,.14,classBoardMat);proBox('pro class floor',.15,0,-2.2,12.1,.012,18,classFloorMat);box('board frame top',.15,4.39,-10.82,7.5,.12,.2,0xd7a94f);box('board frame bottom',.15,2.11,-10.82,7.5,.12,.2,0xd7a94f);bevel(proBox('podium',0,.65,-9.2,2.1,1.3,1.1,classPodiumMat),.03);addColliderBounds(-1.05,1.05,-9.75,-8.65,B1.y0,B1.y1);
   const screenMat=texMat('real-screen',1,1);screenMat.emissive=new THREE.Color(0x555f66);
   proBox('pro podium screen',0,1.66,-9.38,.78,.48,.05,screenMat,-.1);proBox('pro podium stand',0,1.42,-9.36,.12,.3,.12,mat(0x2a2c2e));proBox('pro podium keyboard',0,1.33,-9,.6,.03,.22,mat(0x2a2c2e));aoPad(0,-9.2,2.6,1.6,0);
   // 讲台小物件：粉笔盒、教案本、保温杯，纯装饰，不登记碰撞体。
@@ -398,11 +422,15 @@ function deskSetPro(x,z){
   for(const [k,c] of [[-1,0xffffff],[0,0xf2c14e],[1,0xffffff]])proBox('pro podium prop chalk',-.74+k*.055,1.357,-8.98-k*.014,.03,.02,.1,mat(c),0,.25);
   proBox('pro podium prop plan pages',.68,1.312,-8.96,.3,.024,.22,mat(0xf2eee2),0,-.2);proBox('pro podium prop plan cover',.68,1.328,-8.96,.32,.008,.235,mat(0x3a5a7a),0,-.2);
   proBox('pro podium prop pen',.66,1.339,-8.93,.16,.014,.014,mat(0x222222),0,.5);
-  proCylinder('pro podium prop thermos',.82,1.42,-9.42,.045,.045,.24,mat(0x2f5a45),12);proCylinder('pro podium prop thermos lid',.82,1.56,-9.42,.047,.047,.04,metalMat,12);
-  for(const [x,y,sx,sy] of [[.15,4.39,7.5,.09],[.15,2.11,7.5,.09],[-3.5,3.25,.09,2.3],[3.8,3.25,.09,2.3]])proBox('pro board frame',x,y,-10.79,sx,sy,.05,metalMat);
-  proBox('pro chalk tray',.15,2,-10.78,7.2,.05,.14,metalMat);for(const x of [-1,1.2])proBox('pro chalk',x,2.06,-10.78,.14,.025,.025,mat(0xffffff));
+  proCylinder('pro podium prop thermos',.82,1.42,-9.42,.045,.045,.24,mat(0x2f5a45),12);proCylinder('pro podium prop thermos lid',.82,1.56,-9.42,.047,.047,.04,classMetalMat,12);
+  for(const [x,y,sx,sy] of [[.15,4.39,7.5,.09],[.15,2.11,7.5,.09],[-3.5,3.25,.09,2.3],[3.8,3.25,.09,2.3]])proBox('pro board frame',x,y,-10.79,sx,sy,.05,classMetalMat);
+  // 画质试点：玩家教室四面墙换 PBR 墙面材质（只换材质，几何与碰撞不动；墙体为整栋共用盒体，走廊一侧同色同材）。
+  scene.traverse(o=>{if(o.isMesh&&['class north wall','class south wall','class west wall','class east wall'].includes(o.name))o.material=classWallMat;});
+  // 画质试点：玩家教室暖色反弹补光（低位、低强度，模拟阳光在室内的一次反弹）。
+  const classBounce = new THREE.PointLight(0xffc98a, 7, 11, 2); classBounce.position.set(0, 1.7, -2.5); scene.add(classBounce);
+  proBox('pro chalk tray',.15,2,-10.78,7.2,.05,.14,classMetalMat);for(const x of [-1,1.2])proBox('pro chalk',x,2.06,-10.78,.14,.025,.025,mat(0xffffff));
   for(const [x,y,w] of [[-2,3.5,1.5],[.2,3.15,2.2],[2.4,3.65,1.2]])box('blackboard chalk trace',x,y,-10.84,w,.035,.025,0xd8e6d4);
-  for(const x of [-4.2,0,4.2]){box('class south window',x,2.8,6.58,1.8,1.15,.04,0x8fb2c9);box('class south curtain',x-1.05,2.8,6.52,.24,2.2,.12,0x7a9e7e);box('class south curtain',x+1.05,2.8,6.52,.24,2.2,.12,0x7a9e7e);proBox('pro window mullion',x,2.8,6.58,.07,1.15,.09,metalMat);proBox('pro window mullion',x,2.8,6.58,1.8,.07,.09,metalMat);}
+  for(const x of [-4.2,0,4.2]){box('class south window',x,2.8,6.58,1.8,1.15,.04,0x8fb2c9);box('class south curtain',x-1.05,2.8,6.52,.24,2.2,.12,0x7a9e7e);box('class south curtain',x+1.05,2.8,6.52,.24,2.2,.12,0x7a9e7e);proBox('pro window mullion',x,2.8,6.58,.07,1.15,.09,classMetalMat);proBox('pro window mullion',x,2.8,6.58,1.8,.07,.09,classMetalMat);}
   proBox('pro bulletin',2.1,2.6,6.63,2.2,1.5,.05,texMat('real-paper',1,1));for(const [x,y,sx,sy] of [[2.1,3.38,2.3,.06],[2.1,1.82,2.3,.06],[.97,2.6,.06,1.6],[3.23,2.6,.06,1.6]])proBox('pro bulletin frame',x,y,6.63,sx,sy,.06,mat(0x6a4a2e));
   for(const fz of [-6,2]){proCylinder('pro fan rod',0,3.35,fz,.03,.03,.5,mat(0x59636b),8);proCylinder('pro fan hub',0,3.08,fz,.14,.14,.1,mat(0x59636b),12);for(const a of [0,2.094,4.189]){const blade=new THREE.Mesh(new THREE.BoxGeometry(1.15,.03,.2),mat(0xd8d5cc));blade.geometry.translate(.68,0,0);blade.name='pro fan blade';blade.position.set(0,3.08,fz);blade.rotation.y=a;scene.add(blade);}proCylinder('pro fan pull',.1,2.8,fz,.012,.012,.45,mat(0x8a8578),6);}
   for(const x of [-4.2,0,4.2])sunPatch(x,4.4,2.6,3.4,0,.5);
