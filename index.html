@@ -56,8 +56,8 @@
 </style>
 </head>
 <body>
-<div id="overlay" class="prestart"><h1>校园逃跑计划</h1><div id="startButtons"></div><p>WASD 移动 · 鼠标视角 · 空格 跳跃 · Shift 奔跑</p><p>版本：11/17 晚 · 画质升级试点版</p></div>
-<div id="hud"><div id="stats"></div><div id="floorBadge">1F</div><div id="skipBadge">⚠ 逃课中</div><div id="alertBar"><div id="alertFill"></div></div><div id="suspicionRow" style="display:none">怀疑值</div><div id="suspicionBar"><div id="suspicionFill"></div></div><div id="questRow" style="display:none"></div><div id="escapeHint" style="display:none">学分已满，去校门离开校园！</div><div id="help">WASD 移动 · 鼠标视角 · E 开门/关门 · F 对话/打篮球/交互 · 空格 跳跃 · Shift 奔跑 · 楼梯间在北走廊两端 · 版本 11/17晚·画质升级试点版</div></div>
+<div id="overlay" class="prestart"><h1>校园逃跑计划</h1><div id="startButtons"></div><p>WASD 移动 · 鼠标视角 · 空格 跳跃 · Shift 奔跑</p><p>版本：11/17 晚 · 篮球场进体育馆版</p></div>
+<div id="hud"><div id="stats"></div><div id="floorBadge">1F</div><div id="skipBadge">⚠ 逃课中</div><div id="alertBar"><div id="alertFill"></div></div><div id="suspicionRow" style="display:none">怀疑值</div><div id="suspicionBar"><div id="suspicionFill"></div></div><div id="questRow" style="display:none"></div><div id="escapeHint" style="display:none">学分已满，去校门离开校园！</div><div id="help">WASD 移动 · 鼠标视角 · E 开门/关门 · F 对话/打篮球/交互 · 空格 跳跃 · Shift 奔跑 · 楼梯间在北走廊两端 · 版本 11/17晚·篮球场进体育馆版</div></div>
 <div id="crosshair"></div><div id="prompt">按 E 开门</div><canvas id="minimap" width="196" height="196"></canvas><div id="hotbar"></div><div id="dialog"><img id="dialogPortrait" alt=""><span id="dialogName">严老师</span><span id="dialogText"></span><div id="chatBox" style="display:none"><div id="chatMeta"></div><input id="chatInput" type="text" maxlength="120" placeholder="输入你想说的话…"><button id="chatSend" type="button">发送</button><span id="chatHint">Esc 关闭</span></div></div>
 <div id="toast"></div><div id="summary"></div><div id="fade"></div>
 <div id="basketballOverlay"><button id="basketballClose" type="button">✕ 关闭</button><iframe title="篮球小游戏" src="about:blank"></iframe></div>
@@ -252,7 +252,7 @@
   }
   // 教学楼重建：墙体视觉与分层碰撞分开登记。
   const B1={y0:-.6,y1:1.9}, B2={y0:1.7,y1:5.6};
-  const HOOP_POS = { x:-46.1, z:34.5 }, HOOP_TRIGGER_RADIUS = 2.6;
+  const HOOP_POS = { x:-30.3, z:106 }, HOOP_TRIGGER_RADIUS = 2.6;
   function wall(name,x,y,z,sx,sy,sz,floor=0,color=0xf0c987){box(name,x,y,z,sx,sy,sz,color);addColliderBounds(x-sx/2,x+sx/2,z-sz/2,z+sz/2,...(floor? [B2.y0,B2.y1]:[B1.y0,B1.y1]));}
   function makeDoor(label,z,hingeX,direction,axis='z',y=0){const pivot=new THREE.Group();const plane=z,hinge=hingeX;if(axis==='x')pivot.position.set(plane,y,hinge);else pivot.position.set(hingeX,y,z);scene.add(pivot);const width=DOOR_WIDTH;const leaf=new THREE.Mesh(axis==='x'?new THREE.BoxGeometry(.18,2.95,width):new THREE.BoxGeometry(width,2.95,.18),texMat('real-door',1,1)); leaf.name='person door leaf';if(axis==='x')leaf.position.set(0,1.475,direction*width/2);else leaf.position.set(direction*width/2,1.475,0);pivot.add(leaf);const handle=new THREE.Mesh(new THREE.SphereGeometry(.075,12,8),mat(0xf5d66f));if(axis==='x')handle.position.set(direction*.12,1.45,direction*(width-.22));else handle.position.set(direction*(width-.22),1.45,direction>0?.12:-.12);pivot.add(handle);const door={label,pivot,floorY:y,z:axis==='x'?hinge: z,hingeX:axis==='x'?plane:hingeX,direction,open:false,passable:false,width,cachedBounds:null,axis,plane,hinge};door.cx=axis==='x'?plane:hinge+direction*width/2;door.cz=axis==='x'?hinge+direction*width/2:plane;door.collider={door};colliders.push(door.collider);return door;}
   function makeSign(text,w,h,bg,fg){const canvas=document.createElement('canvas');canvas.width=512;canvas.height=Math.round(512*h/w);const ctx=canvas.getContext('2d');ctx.fillStyle=bg;ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle=fg;ctx.font=`bold ${Math.round(canvas.height*.58)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,canvas.width/2,canvas.height/2);const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;const mesh=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:texture,side:THREE.DoubleSide}));mesh.name=`sign ${text}`;return mesh;}
@@ -808,6 +808,7 @@ function deskSetPro(x,z){
   const gymCenterRing=new THREE.Mesh(new THREE.RingGeometry(1.7,1.9,28),mat(0xf5f2ea)); gymCenterRing.name='gym center circle'; gymCenterRing.rotation.x=-Math.PI/2; gymCenterRing.position.set(-19,-.1,106); scene.add(gymCenterRing);
   for(const [x,dir] of [[-29.5,1],[-8.5,-1]]) { box('gym hoop pole',x,1.7,106,.2,3.4,.2,0x4a5560,true); box('gym backboard',x-dir*.55,2.9,106,.08,1.05,1.45,0xe8e4da); const rim=new THREE.Mesh(new THREE.TorusGeometry(.24,.03,8,20),mat(0xd95f29)); rim.name='gym hoop rim'; rim.rotation.x=Math.PI/2; rim.position.set(x-dir*.8,2.62,106); scene.add(rim); }
   box('gym bench',-19,.23,115.5,10,.46,.5,0x7a9e7e,true); box('gym bench',-19,.23,114.2,10,.46,.5,0x7a9e7e,true);
+  const gymCourtSign=makeSign('篮球场',3,.9,'#3d5a73','#ffffff'); gymCourtSign.position.set(-19,3.6,117.78); gymCourtSign.rotation.y=Math.PI; scene.add(gymCourtSign);
   for(const x of [-26,-12]) { const gymLight=new THREE.PointLight(0xfff2dd,34,48); gymLight.position.set(x,6,106); scene.add(gymLight); }
 
   // 西侧湖泊、跨湖小桥与凉亭。
@@ -835,13 +836,7 @@ function deskSetPro(x,z){
   for (const x of [44,66]) { fieldBox('football box line',x,-.141,49,.09,.012,12,0xf5f2e8); for(const z of [43,55]) fieldBox('football box line',x+(x===44?4:-4),-.141,z,8,.012,.09,0xf5f2e8); fieldBox('football box end line',x+(x===44?8:-8),-.141,49,.09,.012,12,0xf5f2e8); }
   for (const [x,dir] of [[43.5,1],[66.5,-1]]) { for(const z of [47.2,50.8]) { const post=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,2.2,10),mat(0xffffff));post.name='football goal post';post.position.set(-(x),1.1,(z)+21);scene.add(post);colliders.push({bounds:{minX:-x-.15,maxX:-x+.15,minZ:z+21-.15,maxZ:z+21+.15}}); } fieldBox('football goal crossbar',x,2.2,49,.08,.08,3.7,0xffffff); const net=new THREE.Mesh(new THREE.BoxGeometry(.04,1.8,3.4),new THREE.MeshLambertMaterial({color:0xbfc7ca,transparent:true,opacity:.35}));net.name='football goal net';net.position.set(-(x+dir*.9),.9,(49)+21);scene.add(net); }
   fieldBox('football pitch turf',55,-.27,49,34,.25,26,0x5f9e4a);
-  // 篮球场（操场北侧空地，独立场地，不再压在足球场中央）
-  box('court floor',-52.5,-.235,34.5,15,.25,11,0x3f7f8c);
-  for(const [x,z,sx,sz] of [[-52.5,29.05,15,.09],[-52.5,39.95,15,.09],[-59.95,34.5,.09,11],[-45.05,34.5,.09,11]]) box('court line',x,-.104,z,sx,.012,sz,0xf5f2e8);
-  box('court center line',-52.5,-.104,34.5,.09,.012,11,0xf5f2e8);
-  const courtRing=new THREE.Mesh(new THREE.RingGeometry(1.7,1.85,24),mat(0xf5f2e8)); courtRing.name='court center ring'; courtRing.rotation.x=-Math.PI/2; courtRing.position.set(-52.5,-.1,34.5); scene.add(courtRing);
-  box('court hoop pole',-46.1,2.15,34.5,.22,4.3,.22,0x59636b,true); box('court hoop backboard',-45.55,3.65,34.5,.16,1.25,2.2,0xf5f1df,true); box('court hoop rim',-45.15,3.08,34.5,.16,.12,1.05,0xd7472f,true);
-  const courtSign=makeSign('篮球场',2.2,.7,'#3d5a73','#ffffff'); courtSign.position.set(-45.35,2.55,34.5); courtSign.rotation.y=-Math.PI/2; scene.add(courtSign);
+  // 原室外篮球场已拆除：功能球场搬进体育馆室内（见上方体育馆段落），实验楼门口恢复空地通行。
   // 看台（操场西侧）：36 米超长看台，五级台阶可直接走上去；中段塔楼底层是仓库间，顶层是主席台，后侧楼梯直达台顶，顶部有遮雨棚。
   for (let i=0;i<5;i++) { const x1=-89-1.3*i, x0=x1-1.3, top=.5*(i+1), cx=(x0+x1)/2;
     if (i<3) { box('grandstand step',cx,top/2,70,1.3,top,36,0xcac2b2); box('grandstand seat stripe',cx,top-.03,70,1.0,.06,36,0x4d7ab0); }
@@ -855,7 +850,6 @@ function deskSetPro(x,z){
   const storageLight=new THREE.PointLight(0xffe6bb,10,9); storageLight.position.set(-94.2,1.9,58); scene.add(storageLight);
   for(const c of colliders)if(c.mesh&&['storage shelf','storage crate','storage crate top'].indexOf(c.mesh.name)>=0){c.y0=-.6;c.y1=1.8;}
   for(const c of colliders)if(c.mesh&&['storage north wall','storage east wall'].indexOf(c.mesh.name)>=0){c.y0=-.6;c.y1=1.75;}
-  for(const c of colliders)if(c.mesh&&['court hoop backboard','court hoop rim'].indexOf(c.mesh.name)>=0){c.y0=2.8;c.y1=4.4;}
   // 主席台（看台中段顶部平台，踩着台阶就能上去）
   box('rostrum platform',-94.2,2.87,70,2.6,.26,12,0x9aa3ab); box('rostrum support',-94.85,2.62,70,.9,.24,12,0xb9b3a8); box('rostrum support leg',-93.55,2.37,70,.9,.74,12,0xb9b3a8); jumpSurface(-95.5,-92.9,64,76,3.0);
   for (let j=0;j<6;j++){ const top=.5*(j+1), z0=48.4+.6*j; box('stand rear stair',-93.55,top/2,z0+.3,1.3,top,.6,0xb9b3a8); jumpSurface(-94.2,-92.9,z0,z0+.6,top); }
@@ -1116,6 +1110,7 @@ function deskSetPro(x,z){
   function npcLocation() {
     if (gameState.inStrangeSpace) return '奇异空间';
     const x=camera.position.x,z=camera.position.z;
+    if (x>-34 && x<-4 && z>94 && z<118) return '体育馆';
     if (Math.hypot(x-HOOP_POS.x,z-HOOP_POS.z)<HOOP_TRIGGER_RADIUS+1 || z>23) return '操场';
     if (z>9) return '后走廊';
     if (z < -9) return '前走廊';
@@ -1439,7 +1434,7 @@ function deskSetPro(x,z){
     if (doorPrompt) prompt.textContent = '按 E ' + (nearbyDoor.open ? '关门' : '开门');
     else if (fakeNear) prompt.textContent = '按 F 敲门';
     else if (bedNear) prompt.textContent = '按 F 睡觉';
-    else if (hoopPrompt) prompt.textContent = period && (period.type === 'break' || period.type === 'lunch') ? '按 F 打篮球' : (period && (period.type === 'class' || period.type === 'evening') ? '上课时间，操场关闭' : '');
+    else if (hoopPrompt) prompt.textContent = period && (period.type === 'break' || period.type === 'lunch') ? '按 F 打篮球' : (period && (period.type === 'class' || period.type === 'evening') ? '上课时间，体育馆关闭' : '');
     else if (canTalk) prompt.textContent = '按 F 和严老师说话';
     else if(canTalkCounselor) prompt.textContent='按 F 和周辅导员说话';
     else if(adminNear) prompt.textContent='按 F 和神秘人交谈';
@@ -1466,7 +1461,7 @@ function deskSetPro(x,z){
   addPickup('soda', '🥤', '汽水', 4, 32, 0xd94f3d);
   addPickup('coffee', '☕', '咖啡', 61.5, 39, 0x8a5a2b);
   addPickup('notebook', '📓', '笔记本', 2.5, 20.5, 0x3f6fb5);
-  addPickup('ball', '🏀', '篮球', -52.5, 37.5, 0xd97b29);
+  addPickup('ball', '🏀', '篮球', -19, 109.5, 0xd97b29);
   addPickup('phones', '🎧', '耳机', 28, 58, 0x5a4a8a);
   addPickup('umbrella', '☂️', '雨伞', 41, 97.5, 0x4d7ab0);
   // 实验楼主线道具（钥匙链，不进装备栏）
@@ -1577,7 +1572,7 @@ function deskSetPro(x,z){
       else if(adminNear){const q=activeQuest(),available=nextAvailableQuest();if((q&&q.status==='hasItem')||available)adminInteract();else openChat(admin,'SMALL_TALK');}
       else if (hoopDistance < HOOP_TRIGGER_RADIUS) {
         if (period && (period.type === 'break' || period.type === 'lunch')) openBasketball();
-        else if (period && (period.type === 'class' || period.type === 'evening')) showToast('上课时间，操场关闭');
+        else if (period && (period.type === 'class' || period.type === 'evening')) showToast('上课时间，体育馆关闭');
       } else if (Math.hypot(camera.position.x - teacher.group.position.x, camera.position.z - teacher.group.position.z) <= CONFIG.talkDistance) openChat(teacher,period&&period.type==='class'?'PATROL':'SMALL_TALK');
       else if(counselor.group.visible&&Math.hypot(camera.position.x-counselor.group.position.x,camera.position.z-counselor.group.position.z)<=CONFIG.talkDistance)openChat(counselor,period&&period.type==='class'&&gameState.skipping?'PATROL':'SMALL_TALK');
     }
@@ -1854,7 +1849,7 @@ function deskSetPro(x,z){
   }
   window.addEventListener('keydown', (e) => { if (e.code === 'KeyP') { postFX.level = (postFX.level + 2) % 3; postFX.auto = false; } });
   const minimapCtx = document.getElementById('minimap').getContext('2d');
-  const MAP_RECTS = [[-88,-22,46,94,'#3f7a3a'],[-60,-45,29,40,'#2e6f7e'],[-18,18,23,58,'#5a6a72'],[-10,10,-23,23,'#8a97a5'],[30,46,50,66,'#8a97a5'],[64,98,24,54,'#8a97a5'],[70,98,60,86,'#8a97a5'],[52,68,70,84,'#8a97a5'],[26,51.4,70,78,'#8a97a5'],[30,44,82,94,'#5b83b4'],[4,28,86,108,'#8a97a5'],[30,104,102,124,'#a08a68'],[-34,-4,94,118,'#8a97a5'],[-92,-68,24,44,'#8a97a5'],[-95.5,-89,52,88,'#b0a58e']];
+  const MAP_RECTS = [[-88,-22,46,94,'#3f7a3a'],[-18,18,23,58,'#5a6a72'],[-10,10,-23,23,'#8a97a5'],[30,46,50,66,'#8a97a5'],[64,98,24,54,'#8a97a5'],[70,98,60,86,'#8a97a5'],[52,68,70,84,'#8a97a5'],[26,51.4,70,78,'#8a97a5'],[30,44,82,94,'#5b83b4'],[4,28,86,108,'#8a97a5'],[30,104,102,124,'#a08a68'],[-34,-4,94,118,'#8a97a5'],[-31,-7,97,115,'#2e6f7e'],[-92,-68,24,44,'#8a97a5'],[-95.5,-89,52,88,'#b0a58e']];
   let mapTick = 0;
   function drawMinimap() {
     if ((mapTick = (mapTick + 1) % 6) !== 0) return;
